@@ -1,8 +1,10 @@
 import Link from "next/link";
 import { prisma } from "@/components/common/auth/server/prisma";
+import { adminModules, liveAdminModules, plannedAdminModules } from "@/components/common/admin/modules";
+import { getGeminiSettingsOverview } from "@/components/common/api/server/admin/providerSettings";
 
 export default async function AdminOverviewPage() {
-  const [pendingUsers, approvedUsers, apps] = await Promise.all([
+  const [pendingUsers, approvedUsers, apps, apiLogCount, geminiOverview] = await Promise.all([
     prisma.user.count({ where: { approvalStatus: "PENDING" } }),
     prisma.user.count({ where: { approvalStatus: "APPROVED" } }),
     prisma.user.findMany({
@@ -10,38 +12,223 @@ export default async function AdminOverviewPage() {
       distinct: ["registeredAppId"],
       select: { registeredAppId: true },
     }),
+    prisma.apiCallLog.count(),
+    getGeminiSettingsOverview(),
   ]);
 
   const appCount = apps.length;
+  const configuredApiCount =
+    (geminiOverview.keyStatus.configured ? 1 : 0) +
+    ["GARAK_API_KEY", "ECOUNT_API_KEY", "ECOUNT_COMPANY_CODE", "NAVER_CLIENT_ID", "NAVER_CLIENT_SECRET"]
+      .reduce((count, key) => count + (process.env[key] ? 1 : 0), 0);
+
+  const moduleMetrics: Record<
+    (typeof adminModules)[number]["id"],
+    {
+      eyebrow: string;
+      value: string;
+      helper: string;
+      cta?: string;
+    }
+  > = {
+    auth: {
+      eyebrow: "승인 대기",
+      value: `${pendingUsers}명`,
+      helper: `승인 완료 ${approvedUsers}명 · 등록 앱 ${appCount}개`,
+      cta: "사용자 관리 열기",
+    },
+    api: {
+      eyebrow: "연결 준비",
+      value: `${configuredApiCount} / 5`,
+      helper: geminiOverview.keyStatus.configured
+        ? "Gemini 키 저장 상태 정상"
+        : "Gemini 키 저장 필요",
+      cta: "API 워크스페이스 열기",
+    },
+    ui: {
+      eyebrow: "센터 셸",
+      value: "Ready",
+      helper: "모듈 카드, 리스트-디테일 패턴, 공통 톤앤매너 정리",
+    },
+    logs: {
+      eyebrow: "누적 호출",
+      value: `${apiLogCount}`,
+      helper: "호출 로그와 감사 로그를 묶는 전용 허브 예정",
+    },
+    programs: {
+      eyebrow: "정책 대상",
+      value: `${appCount}개`,
+      helper: "프로그램별 어떤 API를 쓸지 제어하는 정책면 준비",
+    },
+  };
 
   return (
     <section>
-      <div className="mb-6">
-        <h2 className="text-2xl font-semibold text-white">공용 통합 관리 센터</h2>
-        <p className="mt-2 text-sm text-zinc-300">
-          사용자 승인(Auth)과 API 운영 상태를 한 곳에서 관리합니다.
-        </p>
+      <div className="overflow-hidden rounded-[32px] border border-white/10 bg-zinc-900/65 p-6 backdrop-blur-xl">
+        <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-zinc-500">
+              Admin Module Center
+            </p>
+            <h2 className="mt-3 text-3xl font-semibold text-white">운영 모듈을 확장 가능한 콘솔로 재정렬합니다.</h2>
+            <p className="mt-3 max-w-3xl text-sm leading-relaxed text-zinc-300">
+              지금은 Auth와 API를 중심으로 운영하고, 다음 단계에서 UI, Logs, Programs 모듈을 같은
+              구조 안에 붙일 수 있도록 `/admin`을 모듈 센터로 정리했습니다.
+            </p>
+
+            <div className="mt-6 flex flex-wrap gap-3">
+              {liveAdminModules.map((module) => (
+                <Link
+                  key={module.id}
+                  href={module.href ?? "/admin"}
+                  className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-zinc-200 transition hover:border-white/20 hover:bg-white/10"
+                >
+                  {module.label}
+                </Link>
+              ))}
+            </div>
+          </div>
+
+          <div className="rounded-3xl border border-white/10 bg-black/20 p-5">
+            <p className="text-sm font-semibold text-white">확장 원칙</p>
+            <div className="mt-4 space-y-3">
+              <PrincipleItem
+                title="모듈 단위 확장"
+                description="새 기능은 별도 모듈로 추가하고, 홈과 사이드바에서 같은 규칙으로 노출합니다."
+              />
+              <PrincipleItem
+                title="리스트 + 상세 패널"
+                description="커넥터나 정책 대상이 늘어나도 좌측 선택, 우측 작업 구조를 유지합니다."
+              />
+              <PrincipleItem
+                title="프로그램 정책 계층"
+                description="나중에 프로그램별 API 선택과 권한을 같은 센터에서 제어할 수 있게 설계합니다."
+              />
+            </div>
+          </div>
+        </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="mt-6 grid gap-4 md:grid-cols-3">
         <StatCard label="승인 대기 사용자" value={`${pendingUsers}`} tone="emerald" />
         <StatCard label="승인 완료 사용자" value={`${approvedUsers}`} tone="blue" />
         <StatCard label="등록된 앱 수" value={`${appCount}`} tone="violet" />
       </div>
 
-      <div className="mt-6 grid gap-4 lg:grid-cols-2">
-        <QuickLinkCard
-          title="사용자 관리"
-          description="승인 대기 사용자를 앱별로 필터링하고 승인/거절을 처리합니다."
-          href="/admin/users"
-        />
-        <QuickLinkCard
-          title="API 관리"
-          description="커넥터 상태 및 환경 설정 값을 확인하고 운영 기준을 점검합니다."
-          href="/admin/apis"
-        />
+      <div className="mt-8">
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <h3 className="text-xl font-semibold text-white">모듈 맵</h3>
+            <p className="mt-2 text-sm text-zinc-400">
+              현재 운영 중인 모듈과 다음 확장 영역을 같은 기준으로 정리합니다.
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-4 grid gap-4 xl:grid-cols-2">
+          {adminModules.map((module) => {
+            const metric = moduleMetrics[module.id];
+
+            return (
+              <article
+                key={module.id}
+                className="relative overflow-hidden rounded-[28px] border border-white/10 bg-zinc-900/60 p-5 backdrop-blur-xl"
+              >
+                <div
+                  className={`pointer-events-none absolute inset-x-0 top-0 h-24 bg-gradient-to-r ${module.accentClassName}`}
+                />
+                <div className="relative">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-white/10 bg-black/20 text-sm font-semibold text-white">
+                        {module.shortLabel}
+                      </div>
+                      <div>
+                        <p className="text-lg font-semibold text-white">{module.label}</p>
+                        <p className="mt-1 text-sm leading-relaxed text-zinc-300">{module.description}</p>
+                      </div>
+                    </div>
+                    <span
+                      className={[
+                        "rounded-full border px-2.5 py-1 text-[11px] font-semibold",
+                        module.availability === "live"
+                          ? "border-emerald-300/20 bg-emerald-500/15 text-emerald-100"
+                          : "border-white/10 bg-white/5 text-zinc-300",
+                      ].join(" ")}
+                    >
+                      {module.badge}
+                    </span>
+                  </div>
+
+                  <div className="mt-5 rounded-2xl border border-white/10 bg-black/20 p-4">
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">
+                      {metric.eyebrow}
+                    </p>
+                    <p className="mt-2 text-3xl font-semibold text-white">{metric.value}</p>
+                    <p className="mt-2 text-sm leading-relaxed text-zinc-400">{metric.helper}</p>
+                  </div>
+
+                  <div className="mt-5 flex items-center justify-between gap-3">
+                    <p className="text-sm text-zinc-400">{module.summary}</p>
+                    {module.href ? (
+                      <Link
+                        href={module.href}
+                        className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white transition hover:border-white/20 hover:bg-white/10"
+                      >
+                        {metric.cta ?? "열기"}
+                      </Link>
+                    ) : (
+                      <span className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-zinc-400">
+                        준비 중
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="mt-8 grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
+        <div className="rounded-[28px] border border-white/10 bg-zinc-900/60 p-5 backdrop-blur-xl">
+          <h3 className="text-lg font-semibold text-white">지금 바로 운영하는 모듈</h3>
+          <div className="mt-4 grid gap-3 md:grid-cols-2">
+            <QuickLinkCard
+              title="사용자 관리"
+              description="승인 대기 사용자를 앱별로 필터링하고 승인/거절을 처리합니다."
+              href="/admin/users"
+            />
+            <QuickLinkCard
+              title="API 워크스페이스"
+              description="커넥터 상태를 리스트로 보고, 상세 패널에서 Gemini 운영 기능을 바로 관리합니다."
+              href="/admin/apis"
+            />
+          </div>
+        </div>
+
+        <div className="rounded-[28px] border border-white/10 bg-zinc-900/60 p-5 backdrop-blur-xl">
+          <h3 className="text-lg font-semibold text-white">다음 확장 모듈</h3>
+          <div className="mt-4 space-y-3">
+            {plannedAdminModules.map((module) => (
+              <div key={module.id} className="rounded-2xl border border-white/10 bg-black/20 p-4">
+                <p className="text-sm font-semibold text-white">{module.label}</p>
+                <p className="mt-2 text-sm leading-relaxed text-zinc-400">{module.summary}</p>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     </section>
+  );
+}
+
+function PrincipleItem({ title, description }: { title: string; description: string }) {
+  return (
+    <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+      <p className="text-sm font-semibold text-white">{title}</p>
+      <p className="mt-2 text-sm leading-relaxed text-zinc-400">{description}</p>
+    </div>
   );
 }
 

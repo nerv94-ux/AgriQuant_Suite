@@ -17,6 +17,13 @@ enum UserRole {
   USER
 }
 
+enum ApiProvider {
+  GEMINI
+  ECOUNT
+  NAVER
+  GARAK
+}
+
 model User {
   id              String          @id @default(cuid())
   name            String?
@@ -70,5 +77,56 @@ model VerificationToken {
   expires    DateTime
 
   @@unique([identifier, token])
+}
+
+model ApiCallLog {
+  id            String   @id @default(cuid())
+  requestId     String   @unique
+  source        String
+  ok            Boolean
+  durationMs    Int
+  timestamp     DateTime
+  appId         String?
+  errorCategory String?
+  message       String?
+  extra         String?  // JSON 직렬화 저장(SQLite 호환)
+
+  createdAt     DateTime @default(now())
+}
+
+model ApiConfig {
+  id              String      @id @default(cuid())
+  provider        ApiProvider @unique
+  enabled         Boolean     @default(true)
+  defaultModel    String?
+  timeoutMs       Int?
+  temperature     Float?
+  maxOutputTokens Int?
+  updatedByEmail  String?
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+}
+
+model ApiSecret {
+  id             String      @id @default(cuid())
+  provider       ApiProvider
+  keyName        String
+  encryptedValue String
+  iv             String
+  authTag        String
+  updatedByEmail String?
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  @@unique([provider, keyName])
+}
+
+model ApiAuditLog {
+  id         String      @id @default(cuid())
+  provider   ApiProvider
+  action     String
+  actorEmail String?
+  detail     String?
+  createdAt  DateTime    @default(now())
 }
 

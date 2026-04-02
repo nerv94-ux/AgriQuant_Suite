@@ -1,4 +1,5 @@
 import { requireApprovedUser } from "@/components/common/auth/server/requireApproved";
+import Link from "next/link";
 
 export default async function Home() {
   const session = await requireApprovedUser();
@@ -19,6 +20,20 @@ export default async function Home() {
             {session.user.email ?? session.user.name ?? session.user.id}
           </span>
         </p>
+        <div className="mt-5 flex flex-wrap gap-2">
+          <Link
+            href="/admin/apis"
+            className="inline-flex h-10 items-center rounded-xl bg-black px-4 text-sm font-semibold text-white dark:bg-white dark:text-black"
+          >
+            API 모듈 바로가기
+          </Link>
+          <Link
+            href="/admin"
+            className="inline-flex h-10 items-center rounded-xl border border-black/10 bg-white px-4 text-sm font-semibold text-zinc-900 dark:border-white/10 dark:bg-white/10 dark:text-white"
+          >
+            관리자 센터
+          </Link>
+        </div>
       </div>
     </div>
   );
