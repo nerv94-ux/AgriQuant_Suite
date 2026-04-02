@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useState } from "react";
 import type { ReactNode } from "react";
 import {
   adminHomeItem,
@@ -18,45 +19,90 @@ type AdminShellClientProps = {
 export default function AdminShellClient({ userLabel, children }: AdminShellClientProps) {
   const pathname = usePathname();
   const activePathname = pathname ?? "";
+  const [collapsed, setCollapsed] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return window.localStorage.getItem("admin:sidebar:collapsed") === "1";
+  });
+
+  function toggleCollapsed() {
+    setCollapsed((current) => {
+      const next = !current;
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem("admin:sidebar:collapsed", next ? "1" : "0");
+      }
+      return next;
+    });
+  }
 
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100">
       <div className="mx-auto flex w-full max-w-[1600px]">
-        <aside className="hidden border-r border-white/10 bg-zinc-950/85 backdrop-blur-xl lg:flex lg:w-80 lg:flex-col">
-          <div className="border-b border-white/10 px-6 py-6">
-            <p className="text-[11px] uppercase tracking-[0.24em] text-zinc-500">AgriQuote Admin</p>
-            <h1 className="mt-2 text-xl font-semibold text-white">모듈 센터</h1>
-            <p className="mt-2 text-xs leading-relaxed text-zinc-400">
-              Auth, API, UI, Logs, Programs 모듈을 같은 구조 안에서 확장합니다.
-            </p>
+        <aside
+          className={[
+            "hidden border-r border-white/10 bg-zinc-950/85 backdrop-blur-xl lg:flex lg:flex-col transition-all duration-200",
+            collapsed ? "lg:w-[92px]" : "lg:w-80",
+          ].join(" ")}
+        >
+          <div className={["border-b border-white/10 py-6", collapsed ? "px-3" : "px-6"].join(" ")}>
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-[11px] uppercase tracking-[0.24em] text-zinc-500">
+                {collapsed ? "AQ" : "AgriQuote Admin"}
+              </p>
+              <button
+                type="button"
+                onClick={toggleCollapsed}
+                title={collapsed ? "사이드바 확장" : "사이드바 축소"}
+                className="h-7 w-7 rounded-lg border border-white/10 bg-white/5 text-xs text-zinc-200"
+              >
+                {collapsed ? "›" : "‹"}
+              </button>
+            </div>
+            {!collapsed ? (
+              <>
+                <h1 className="mt-2 text-xl font-semibold text-white">모듈 센터</h1>
+                <p className="mt-2 text-xs leading-relaxed text-zinc-400">
+                  Auth, API, UI, Logs, Programs 모듈을 같은 구조 안에서 확장합니다.
+                </p>
+              </>
+            ) : null}
           </div>
 
-          <div className="border-b border-white/10 px-3 py-4">
-            <p className="px-3 pb-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-zinc-500">
-              Center
-            </p>
+          <div className={["border-b border-white/10 py-4", collapsed ? "px-2" : "px-3"].join(" ")}>
+            {!collapsed ? (
+              <p className="px-3 pb-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-zinc-500">
+                Center
+              </p>
+            ) : null}
             <Link
               href={adminHomeItem.href}
+              title={adminHomeItem.label}
               className={[
-                "flex rounded-2xl border px-4 py-3 transition",
+                "flex rounded-2xl border transition",
+                collapsed ? "justify-center px-2 py-3" : "px-4 py-3",
                 isAdminHrefActive(activePathname, adminHomeItem.href)
                   ? "border-white/15 bg-white/10 text-white shadow-[0_12px_30px_-18px_rgba(255,255,255,0.45)]"
                   : "border-transparent text-zinc-300 hover:border-white/10 hover:bg-white/5 hover:text-white",
               ].join(" ")}
             >
-              <div>
-                <p className="text-sm font-semibold">{adminHomeItem.label}</p>
-                <p className="mt-1 text-xs leading-relaxed text-zinc-400">
-                  {adminHomeItem.description}
-                </p>
-              </div>
+              {collapsed ? (
+                <span className="text-xs font-semibold">홈</span>
+              ) : (
+                <div>
+                  <p className="text-sm font-semibold">{adminHomeItem.label}</p>
+                  <p className="mt-1 text-xs leading-relaxed text-zinc-400">
+                    {adminHomeItem.description}
+                  </p>
+                </div>
+              )}
             </Link>
           </div>
 
-          <nav className="px-3 py-4">
-            <p className="px-3 pb-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-zinc-500">
-              Live Modules
-            </p>
+          <nav className={["py-4", collapsed ? "px-2" : "px-3"].join(" ")}>
+            {!collapsed ? (
+              <p className="px-3 pb-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-zinc-500">
+                Live Modules
+              </p>
+            ) : null}
             <div className="space-y-2">
               {liveAdminModules.map((item) => {
                 const active = item.href ? isAdminHrefActive(activePathname, item.href) : false;
@@ -64,51 +110,69 @@ export default function AdminShellClient({ userLabel, children }: AdminShellClie
                   <Link
                     key={item.id}
                     href={item.href ?? "/admin"}
+                    title={item.label}
                     className={[
-                      "block rounded-2xl border px-4 py-3 transition",
+                      "block rounded-2xl border transition",
+                      collapsed ? "px-2 py-3 text-center" : "px-4 py-3",
                       active
                         ? "border-white/15 bg-white/10 text-white shadow-[0_12px_30px_-18px_rgba(255,255,255,0.45)]"
                         : "border-transparent text-zinc-300 hover:border-white/10 hover:bg-white/5 hover:text-white",
                     ].join(" ")}
                   >
-                    <div className="flex items-start justify-between gap-3">
+                    {collapsed ? (
                       <div>
-                        <p className="text-sm font-semibold">{item.label}</p>
-                        <p className="mt-1 text-xs leading-relaxed text-zinc-400">
-                          {item.summary}
-                        </p>
+                        <p className="text-xs font-semibold">{item.shortLabel}</p>
                       </div>
-                      <span className="rounded-full border border-emerald-300/20 bg-emerald-500/15 px-2 py-1 text-[10px] font-semibold text-emerald-200">
-                        {item.badge}
-                      </span>
-                    </div>
+                    ) : (
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-semibold">{item.label}</p>
+                          <p className="mt-1 text-xs leading-relaxed text-zinc-400">
+                            {item.summary}
+                          </p>
+                        </div>
+                        <span className="rounded-full border border-emerald-300/20 bg-emerald-500/15 px-2 py-1 text-[10px] font-semibold text-emerald-200">
+                          {item.badge}
+                        </span>
+                      </div>
+                    )}
                   </Link>
                 );
               })}
             </div>
           </nav>
 
-          <div className="border-t border-white/10 px-3 py-4">
-            <p className="px-3 pb-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-zinc-500">
-              Planned
-            </p>
+          <div className={["border-t border-white/10 py-4", collapsed ? "px-2" : "px-3"].join(" ")}>
+            {!collapsed ? (
+              <p className="px-3 pb-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-zinc-500">
+                Planned
+              </p>
+            ) : null}
             <div className="space-y-2">
               {plannedAdminModules.map((item) => (
                 <div
                   key={item.id}
-                  className="rounded-2xl border border-white/5 bg-white/[0.03] px-4 py-3"
+                  className={[
+                    "rounded-2xl border border-white/5 bg-white/[0.03]",
+                    collapsed ? "px-2 py-3 text-center" : "px-4 py-3",
+                  ].join(" ")}
+                  title={item.label}
                 >
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="text-sm font-semibold text-zinc-200">{item.label}</p>
-                      <p className="mt-1 text-xs leading-relaxed text-zinc-500">
-                        {item.summary}
-                      </p>
+                  {collapsed ? (
+                    <p className="text-xs font-semibold text-zinc-300">{item.shortLabel}</p>
+                  ) : (
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-semibold text-zinc-200">{item.label}</p>
+                        <p className="mt-1 text-xs leading-relaxed text-zinc-500">
+                          {item.summary}
+                        </p>
+                      </div>
+                      <span className="rounded-full border border-white/10 bg-white/5 px-2 py-1 text-[10px] font-semibold text-zinc-400">
+                        {item.badge}
+                      </span>
                     </div>
-                    <span className="rounded-full border border-white/10 bg-white/5 px-2 py-1 text-[10px] font-semibold text-zinc-400">
-                      {item.badge}
-                    </span>
-                  </div>
+                  )}
                 </div>
               ))}
             </div>

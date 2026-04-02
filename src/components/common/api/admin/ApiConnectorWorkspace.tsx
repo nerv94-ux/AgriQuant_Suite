@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { motion } from "framer-motion";
 import type {
   EcoPriceSettingsOverview,
   EcountSettingsOverview,
@@ -59,6 +60,8 @@ export function ApiConnectorWorkspace({
   const [ecoPriceState, setEcoPriceState] = useState(ecoPriceOverview);
   const [connectorRows, setConnectorRows] = useState(connectors);
   const autoHealthStartedRef = useRef<Record<string, boolean>>({});
+  const [recoveringConnectorId, setRecoveringConnectorId] = useState<string | null>(null);
+  const [showDegradedDetail, setShowDegradedDetail] = useState(false);
 
   useEffect(() => {
     setGeminiState(geminiOverview);
@@ -95,10 +98,29 @@ export function ApiConnectorWorkspace({
     };
   }, [connectorRows]);
 
+  const selectedRecentLogs = useMemo(() => {
+    if (!selectedConnector) return [];
+    if (selectedConnector.id === "google-ai") return geminiState.recentLogs;
+    if (selectedConnector.id === "ecount") return ecountState.recentLogs;
+    if (selectedConnector.id === "kma-weather") return kmaState.recentLogs;
+    if (selectedConnector.id === "eco-price") return ecoPriceState.recentLogs;
+    return [];
+  }, [ecoPriceState.recentLogs, ecountState.recentLogs, geminiState.recentLogs, kmaState.recentLogs, selectedConnector]);
+
+  const selectedLastHealthyAt = useMemo(() => {
+    const hit = selectedRecentLogs.find((log) => log.ok);
+    return hit?.createdAt ?? null;
+  }, [selectedRecentLogs]);
+  const selectedRecentFailedLogs = useMemo(
+    () => selectedRecentLogs.filter((log) => !log.ok).slice(0, 3),
+    [selectedRecentLogs]
+  );
+
   function selectConnector(id: string) {
     const params = new URLSearchParams(safeSearchParams.toString());
     params.set("connector", id);
     router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+    setShowDegradedDetail(false);
   }
 
   const applyGeminiOverview = useCallback((overview: GeminiSettingsOverview) => {
@@ -410,6 +432,40 @@ export function ApiConnectorWorkspace({
     }
   }, [refreshEcoPriceOverview]);
 
+  const runConnectorRecovery = useCallback(
+    async (connectorId: string) => {
+      const endpointMap: Record<string, string> = {
+        "google-ai": "/api/admin/connectors/gemini-health",
+        ecount: "/api/admin/connectors/ecount-health?force=1",
+        "kma-weather": "/api/admin/connectors/kma-health",
+        "eco-price": "/api/admin/connectors/eco-price-health",
+      };
+      const endpoint = endpointMap[connectorId];
+      if (!endpoint) return;
+
+      setRecoveringConnectorId(connectorId);
+      try {
+        for (let i = 0; i < 3; i += 1) {
+          try {
+            await fetch(endpoint, { method: "POST" });
+          } catch {
+            // retry by backoff
+          }
+          if (i < 2) {
+            await new Promise((resolve) => setTimeout(resolve, 700 * (i + 1)));
+          }
+        }
+        if (connectorId === "google-ai") await refreshGeminiOverview();
+        if (connectorId === "ecount") await refreshEcountOverview();
+        if (connectorId === "kma-weather") await refreshKmaOverview();
+        if (connectorId === "eco-price") await refreshEcoPriceOverview();
+      } finally {
+        setRecoveringConnectorId(null);
+      }
+    },
+    [refreshEcoPriceOverview, refreshEcountOverview, refreshGeminiOverview, refreshKmaOverview]
+  );
+
   useEffect(() => {
     const geminiConnector = connectorRows.find((connector) => connector.id === "google-ai");
 
@@ -488,8 +544,14 @@ export function ApiConnectorWorkspace({
 
   return (
     <section>
-      <div className="mb-7">
-        <div className="flex flex-wrap items-start justify-between gap-4">
+      <motion.div
+        className="mb-7"
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.25, ease: "easeOut" }}
+      >
+        <div className="grid gap-4 xl:grid-cols-12">
+          <div className="xl:col-span-8">
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-zinc-500">
               API Module
@@ -500,14 +562,14 @@ export function ApiConnectorWorkspace({
               앞으로는 프로그램별 API 사용 정책까지 같은 워크스페이스에서 확장할 수 있게 정리합니다.
             </p>
           </div>
-
-          <div className="grid min-w-[320px] gap-3 sm:grid-cols-3">
+          </div>
+          <div className="grid min-w-[320px] gap-3 sm:grid-cols-3 xl:col-span-4">
             <MetricCard label="연결 수" value={`${summary.total}`} />
             <MetricCard label="준비 완료" value={`${summary.ready}`} tone="emerald" />
             <MetricCard label="주의 필요" value={`${summary.attention}`} tone="amber" />
           </div>
         </div>
-      </div>
+      </motion.div>
 
       <div className="grid gap-5 xl:grid-cols-[360px_minmax(0,1fr)]">
         <div className="rounded-[28px] border border-white/10 bg-zinc-900/60 p-3 backdrop-blur-xl">
@@ -600,13 +662,18 @@ export function ApiConnectorWorkspace({
                   </p>
                 </div>
 
-                <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap gap-2">
                   <StatusBadge
                     kind="setup"
                     status={selectedConnector.setupStatus}
                     label={selectedConnector.setupLabel}
                   />
                   <HealthBadge status={selectedConnector.healthStatus} label={selectedConnector.healthLabel} />
+                  {selectedConnector.healthStatus === "unhealthy" ? (
+                    <span className="rounded-full border border-amber-300/20 bg-amber-500/15 px-2.5 py-1 text-xs font-semibold text-amber-100">
+                      Degraded
+                    </span>
+                  ) : null}
                 </div>
               </div>
 
@@ -642,6 +709,56 @@ export function ApiConnectorWorkspace({
               </div>
 
               <p className="mt-4 text-sm text-zinc-400">{selectedConnector.healthMessage}</p>
+              {selectedConnector.healthStatus === "unhealthy" ? (
+                <div className="mt-4 rounded-2xl border border-amber-300/20 bg-amber-500/10 p-4">
+                  <p className="text-sm font-semibold text-amber-100">장애 대응 모드</p>
+                  <p className="mt-1 text-xs leading-relaxed text-amber-50/90">
+                    최근 연결 실패로 Degraded 상태입니다. 마지막 성공 시각을 유지하며 복구 시도를 실행할 수 있습니다.
+                  </p>
+                  <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-zinc-300">
+                    <span>
+                      마지막 성공: {selectedLastHealthyAt ? formatDateTime(selectedLastHealthyAt) : "기록 없음"}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => void runConnectorRecovery(selectedConnector.id)}
+                    disabled={recoveringConnectorId === selectedConnector.id}
+                    className="mt-3 h-9 rounded-xl border border-amber-200/30 bg-amber-500/20 px-3 text-xs font-semibold text-amber-100 disabled:opacity-60"
+                  >
+                    {recoveringConnectorId === selectedConnector.id ? "복구 시도 중..." : "복구 재시도 (최대 3회)"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowDegradedDetail((current) => !current)}
+                    className="mt-2 h-8 rounded-lg border border-white/10 bg-white/5 px-3 text-[11px] font-semibold text-zinc-200"
+                  >
+                    {showDegradedDetail ? "상세 닫기" : "오류 상세 보기"}
+                  </button>
+                  {showDegradedDetail ? (
+                    <div className="mt-3 space-y-2 rounded-xl border border-white/10 bg-black/20 p-3">
+                      <p className="text-[11px] text-zinc-300 break-all">
+                        현재 메시지: {selectedConnector.healthMessage}
+                      </p>
+                      <div className="space-y-2">
+                        {selectedRecentFailedLogs.map((log) => (
+                          <div key={log.id} className="rounded-lg border border-white/10 bg-white/[0.02] p-2">
+                            <p className="text-[10px] text-zinc-500">
+                              {new Date(log.createdAt).toLocaleString()}
+                            </p>
+                            <p className="mt-1 text-[11px] leading-relaxed text-zinc-300 break-all">
+                              {log.message ?? "메시지 없음"}
+                            </p>
+                          </div>
+                        ))}
+                        {selectedRecentFailedLogs.length === 0 ? (
+                          <p className="text-[11px] text-zinc-500">실패 상세 로그가 없습니다.</p>
+                        ) : null}
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
             </div>
 
             <div className="mt-5 grid gap-4 xl:grid-cols-[minmax(0,1fr)_300px]">
@@ -719,6 +836,31 @@ export function ApiConnectorWorkspace({
                     </p>
                   </SidePanelCard>
                 ) : null}
+                <SidePanelCard title="최근 로그">
+                  <div className="space-y-2">
+                    {selectedRecentLogs.slice(0, 5).map((log) => (
+                      <div key={log.id} className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-xs text-zinc-300">{new Date(log.createdAt).toLocaleString()}</span>
+                          <span
+                            className={[
+                              "rounded-full border px-2 py-0.5 text-[10px] font-semibold",
+                              log.ok
+                                ? "border-emerald-300/20 bg-emerald-500/15 text-emerald-100"
+                                : "border-rose-300/20 bg-rose-500/15 text-rose-100",
+                            ].join(" ")}
+                          >
+                            {log.ok ? "OK" : "FAIL"}
+                          </span>
+                        </div>
+                        <p className="mt-2 line-clamp-2 text-xs text-zinc-400">{log.message ?? "로그 메시지 없음"}</p>
+                      </div>
+                    ))}
+                    {selectedRecentLogs.length === 0 ? (
+                      <p className="text-xs text-zinc-500">표시할 로그가 없습니다.</p>
+                    ) : null}
+                  </div>
+                </SidePanelCard>
               </aside>
             </div>
           </div>

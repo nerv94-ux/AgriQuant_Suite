@@ -2,9 +2,13 @@ import Link from "next/link";
 import { prisma } from "@/components/common/auth/server/prisma";
 import { adminModules, liveAdminModules, plannedAdminModules } from "@/components/common/admin/modules";
 import { getGeminiSettingsOverview } from "@/components/common/api/server/admin/providerSettings";
+import { AnimatedNumber } from "@/components/common/admin/AnimatedNumber";
+import { AdminEventTimeline, type AdminEventItem } from "@/components/common/admin/AdminEventTimeline";
+import { FadeInCard } from "@/components/common/admin/FadeInCard";
 
 export default async function AdminOverviewPage() {
-  const [pendingUsers, approvedUsers, apps, apiLogCount, geminiOverview] = await Promise.all([
+  const [pendingUsers, approvedUsers, apps, apiLogCount, geminiOverview, recentApiLogs, recentAuditLogs] =
+    await Promise.all([
     prisma.user.count({ where: { approvalStatus: "PENDING" } }),
     prisma.user.count({ where: { approvalStatus: "APPROVED" } }),
     prisma.user.findMany({
@@ -14,6 +18,14 @@ export default async function AdminOverviewPage() {
     }),
     prisma.apiCallLog.count(),
     getGeminiSettingsOverview(),
+    prisma.apiCallLog.findMany({
+      orderBy: { createdAt: "desc" },
+      take: 12,
+    }),
+    prisma.apiAuditLog.findMany({
+      orderBy: { createdAt: "desc" },
+      take: 12,
+    }),
   ]);
 
   const appCount = apps.length;
@@ -21,6 +33,30 @@ export default async function AdminOverviewPage() {
     (geminiOverview.keyStatus.configured ? 1 : 0) +
     ["GARAK_API_KEY", "ECOUNT_API_KEY", "ECOUNT_COMPANY_CODE", "NAVER_CLIENT_ID", "NAVER_CLIENT_SECRET"]
       .reduce((count, key) => count + (process.env[key] ? 1 : 0), 0);
+  const unhealthyCount = [geminiOverview.health.status].filter((status) => status === "unhealthy").length;
+
+  const timelineItems: AdminEventItem[] = [
+    ...recentApiLogs.map((log) => ({
+      id: `call-${log.id}`,
+      source: log.source,
+      action: log.appId ?? "CALL",
+      actor: log.appId ?? "system",
+      ok: log.ok,
+      createdAt: log.createdAt.toISOString(),
+      message: log.message ?? "API 호출 이벤트",
+    })),
+    ...recentAuditLogs.map((log) => ({
+      id: `audit-${log.id}`,
+      source: log.provider,
+      action: log.action,
+      actor: log.actorEmail ?? "system",
+      ok: true,
+      createdAt: log.createdAt.toISOString(),
+      message: log.detail ?? "설정 변경 이벤트",
+    })),
+  ]
+    .sort((a, b) => (a.createdAt > b.createdAt ? -1 : 1))
+    .slice(0, 12);
 
   const moduleMetrics: Record<
     (typeof adminModules)[number]["id"],
@@ -64,9 +100,9 @@ export default async function AdminOverviewPage() {
 
   return (
     <section>
-      <div className="overflow-hidden rounded-[32px] border border-white/10 bg-zinc-900/65 p-6 backdrop-blur-xl">
-        <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
-          <div>
+      <div className="grid gap-4 xl:grid-cols-12">
+        <FadeInCard delay={0} className="xl:col-span-8">
+          <div className="overflow-hidden rounded-[32px] border border-white/10 bg-zinc-900/65 p-6 backdrop-blur-xl">
             <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-zinc-500">
               Admin Module Center
             </p>
@@ -88,8 +124,10 @@ export default async function AdminOverviewPage() {
               ))}
             </div>
           </div>
+        </FadeInCard>
 
-          <div className="rounded-3xl border border-white/10 bg-black/20 p-5">
+        <FadeInCard delay={0.03} className="xl:col-span-4">
+          <div className="h-full rounded-3xl border border-white/10 bg-black/20 p-5">
             <p className="text-sm font-semibold text-white">확장 원칙</p>
             <div className="mt-4 space-y-3">
               <PrincipleItem
@@ -106,34 +144,39 @@ export default async function AdminOverviewPage() {
               />
             </div>
           </div>
-        </div>
+        </FadeInCard>
       </div>
 
-      <div className="mt-6 grid gap-4 md:grid-cols-3">
-        <StatCard label="승인 대기 사용자" value={`${pendingUsers}`} tone="emerald" />
-        <StatCard label="승인 완료 사용자" value={`${approvedUsers}`} tone="blue" />
-        <StatCard label="등록된 앱 수" value={`${appCount}`} tone="violet" />
+      <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <FadeInCard delay={0.06}>
+          <StatCard label="승인 대기 사용자" value={pendingUsers} tone="emerald" />
+        </FadeInCard>
+        <FadeInCard delay={0.09}>
+          <StatCard label="승인 완료 사용자" value={approvedUsers} tone="blue" />
+        </FadeInCard>
+        <FadeInCard delay={0.12}>
+          <StatCard label="등록된 앱 수" value={appCount} tone="violet" />
+        </FadeInCard>
+        <FadeInCard delay={0.15}>
+          <StatCard label="비정상 커넥터" value={unhealthyCount} tone="amber" />
+        </FadeInCard>
       </div>
 
-      <div className="mt-8">
-        <div className="flex items-center justify-between gap-4">
-          <div>
+      <div className="mt-8 grid gap-4 xl:grid-cols-12">
+        <div className="xl:col-span-8">
+          <div className="mb-3">
             <h3 className="text-xl font-semibold text-white">모듈 맵</h3>
-            <p className="mt-2 text-sm text-zinc-400">
-              현재 운영 중인 모듈과 다음 확장 영역을 같은 기준으로 정리합니다.
+            <p className="mt-1 text-sm text-zinc-400">
+              운영/확장 모듈을 벤토 스타일로 분리해 우선순위를 빠르게 파악합니다.
             </p>
           </div>
-        </div>
+          <div className="grid gap-4 xl:grid-cols-2">
+            {adminModules.map((module, index) => {
+              const metric = moduleMetrics[module.id];
 
-        <div className="mt-4 grid gap-4 xl:grid-cols-2">
-          {adminModules.map((module) => {
-            const metric = moduleMetrics[module.id];
-
-            return (
-              <article
-                key={module.id}
-                className="relative overflow-hidden rounded-[28px] border border-white/10 bg-zinc-900/60 p-5 backdrop-blur-xl"
-              >
+              return (
+                <FadeInCard key={module.id} delay={0.05 + index * 0.02}>
+                  <article className="relative overflow-hidden rounded-[28px] border border-white/10 bg-zinc-900/60 p-5 backdrop-blur-xl">
                 <div
                   className={`pointer-events-none absolute inset-x-0 top-0 h-24 bg-gradient-to-r ${module.accentClassName}`}
                 />
@@ -184,14 +227,22 @@ export default async function AdminOverviewPage() {
                     )}
                   </div>
                 </div>
-              </article>
-            );
-          })}
+                  </article>
+                </FadeInCard>
+              );
+            })}
+          </div>
+        </div>
+        <div className="xl:col-span-4">
+          <FadeInCard delay={0.18}>
+            <AdminEventTimeline items={timelineItems} />
+          </FadeInCard>
         </div>
       </div>
 
       <div className="mt-8 grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
-        <div className="rounded-[28px] border border-white/10 bg-zinc-900/60 p-5 backdrop-blur-xl">
+        <FadeInCard delay={0.2} className="h-full">
+          <div className="h-full rounded-[28px] border border-white/10 bg-zinc-900/60 p-5 backdrop-blur-xl">
           <h3 className="text-lg font-semibold text-white">지금 바로 운영하는 모듈</h3>
           <div className="mt-4 grid gap-3 md:grid-cols-2">
             <QuickLinkCard
@@ -205,9 +256,11 @@ export default async function AdminOverviewPage() {
               href="/admin/apis"
             />
           </div>
-        </div>
+          </div>
+        </FadeInCard>
 
-        <div className="rounded-[28px] border border-white/10 bg-zinc-900/60 p-5 backdrop-blur-xl">
+        <FadeInCard delay={0.23} className="h-full">
+          <div className="h-full rounded-[28px] border border-white/10 bg-zinc-900/60 p-5 backdrop-blur-xl">
           <h3 className="text-lg font-semibold text-white">다음 확장 모듈</h3>
           <div className="mt-4 space-y-3">
             {plannedAdminModules.map((module) => (
@@ -217,7 +270,8 @@ export default async function AdminOverviewPage() {
               </div>
             ))}
           </div>
-        </div>
+          </div>
+        </FadeInCard>
       </div>
     </section>
   );
@@ -238,13 +292,14 @@ function StatCard({
   tone,
 }: {
   label: string;
-  value: string;
-  tone: "emerald" | "blue" | "violet";
+  value: number;
+  tone: "emerald" | "blue" | "violet" | "amber";
 }) {
   const toneMap: Record<typeof tone, string> = {
     emerald: "from-emerald-400/20 to-emerald-500/5 border-emerald-300/20",
     blue: "from-blue-400/20 to-blue-500/5 border-blue-300/20",
     violet: "from-violet-400/20 to-violet-500/5 border-violet-300/20",
+    amber: "from-amber-400/20 to-amber-500/5 border-amber-300/20",
   };
 
   return (
@@ -256,7 +311,9 @@ function StatCard({
       ].join(" ")}
     >
       <p className="text-sm text-zinc-300">{label}</p>
-      <p className="mt-2 text-3xl font-semibold text-white">{value}</p>
+      <p className="mt-2 text-3xl font-semibold text-white">
+        <AnimatedNumber value={value} />
+      </p>
     </article>
   );
 }
