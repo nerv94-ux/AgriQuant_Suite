@@ -1,8 +1,11 @@
 import type {
+  EcoCertSettingsOverview,
   EcoPriceSettingsOverview,
   EcountSettingsOverview,
   GeminiSettingsOverview,
   KmaSettingsOverview,
+  MafraSettingsOverview,
+  NaverSettingsOverview,
 } from "@/components/common/api/server/admin/providerSettings";
 import type { ApiConnectorHealthStatus, ApiConnectorSummary, ApiConnectorStatus } from "./types";
 
@@ -42,6 +45,17 @@ export const connectorCatalog: ConnectorCatalogItem[] = [
     healthSupported: true,
   },
   {
+    id: "eco-cert",
+    name: "친환경 인증정보",
+    category: "Agri Certification",
+    description: "친환경 인증 단체/개인, 품목, 유효기간 정보를 조회하는 공용 인증 커넥터입니다.",
+    requiredKeys: ["ECO_CERT_SERVICE_KEY"],
+    usageScope: "인증 검증/품목 연계 모듈",
+    bindingMode: "program-selectable",
+    nextStep: "인증번호/단체명/품목명 기반 검증 흐름을 프로그램별 업무에 연결합니다.",
+    healthSupported: true,
+  },
+  {
     id: "kma-weather",
     name: "기상청 Open API",
     category: "Weather Data",
@@ -72,7 +86,18 @@ export const connectorCatalog: ConnectorCatalogItem[] = [
     usageScope: "프로그램별 선택 예정",
     bindingMode: "program-selectable",
     nextStep: "향후 프로그램 모듈과 연결해 데이터 수집 대상과 인증 정보를 분리 관리합니다.",
-    healthSupported: false,
+    healthSupported: true,
+  },
+  {
+    id: "mafra-wholesale",
+    name: "전국 도매시장 경매 API",
+    category: "Agri Wholesale Data",
+    description: "실시간 경락, 정산가격, 기간 집계와 코드사전을 운영형으로 테스트하는 커넥터입니다.",
+    requiredKeys: ["MAFRA_API_KEY"],
+    usageScope: "도매시장 시세/거래 분석 모듈",
+    bindingMode: "program-selectable",
+    nextStep: "프로그램 입력(시장명/품목명)을 코드 자동해석해 메인 API 질의로 연결합니다.",
+    healthSupported: true,
   },
 ];
 
@@ -125,8 +150,11 @@ export function buildConnectorSummaries(params: {
   ecountOverview: EcountSettingsOverview;
   kmaOverview: KmaSettingsOverview;
   ecoPriceOverview: EcoPriceSettingsOverview;
+  ecoCertOverview: EcoCertSettingsOverview;
+  naverOverview: NaverSettingsOverview;
+  mafraOverview: MafraSettingsOverview;
 }): ApiConnectorSummary[] {
-  const { geminiOverview, ecountOverview, kmaOverview, ecoPriceOverview } = params;
+  const { geminiOverview, ecountOverview, kmaOverview, ecoPriceOverview, ecoCertOverview, naverOverview, mafraOverview } = params;
   return connectorCatalog.map((connector) => {
     const configuredKeys =
       connector.id === "google-ai"
@@ -142,6 +170,10 @@ export function buildConnectorSummaries(params: {
         : connector.id === "eco-price"
           ? ecoPriceOverview.keyStatus.configured
             ? ["ECO_PRICE_SERVICE_KEY"]
+            : []
+        : connector.id === "eco-cert"
+          ? ecoCertOverview.keyStatus.configured
+            ? ["ECO_CERT_SERVICE_KEY"]
             : []
         : connector.requiredKeys.filter((key) => Boolean(process.env[key]));
 
@@ -208,6 +240,58 @@ export function buildConnectorSummaries(params: {
         healthDurationMs: ecoPriceOverview.health.durationMs,
         healthSupported: connector.healthSupported,
         healthStale: ecoPriceOverview.health.stale,
+      };
+    }
+
+    if (connector.id === "eco-cert") {
+      return {
+        ...connector,
+        configuredKeys,
+        setupStatus,
+        setupLabel: toSetupLabel(setupStatus),
+        healthStatus: ecoCertOverview.health.status,
+        healthLabel: toHealthLabel(ecoCertOverview.health.status),
+        healthMessage: ecoCertOverview.health.message,
+        lastCheckedAt: ecoCertOverview.health.lastCheckedAt,
+        healthDurationMs: ecoCertOverview.health.durationMs,
+        healthSupported: connector.healthSupported,
+        healthStale: ecoCertOverview.health.stale,
+      };
+    }
+
+    if (connector.id === "naver-shopping") {
+      const naverConfiguredKeys = naverOverview.keyStatus.configuredKeys;
+      const naverSetupStatus = toSetupStatus(connector.requiredKeys, naverConfiguredKeys);
+      return {
+        ...connector,
+        configuredKeys: naverConfiguredKeys,
+        setupStatus: naverSetupStatus,
+        setupLabel: toSetupLabel(naverSetupStatus),
+        healthStatus: naverOverview.health.status,
+        healthLabel: toHealthLabel(naverOverview.health.status),
+        healthMessage: naverOverview.health.message,
+        lastCheckedAt: naverOverview.health.lastCheckedAt,
+        healthDurationMs: naverOverview.health.durationMs,
+        healthSupported: connector.healthSupported,
+        healthStale: naverOverview.health.stale,
+      };
+    }
+
+    if (connector.id === "mafra-wholesale") {
+      const configuredKeys = mafraOverview.keyStatus.configured ? ["MAFRA_API_KEY"] : [];
+      const setupStatus = toSetupStatus(connector.requiredKeys, configuredKeys);
+      return {
+        ...connector,
+        configuredKeys,
+        setupStatus,
+        setupLabel: toSetupLabel(setupStatus),
+        healthStatus: mafraOverview.health.status,
+        healthLabel: toHealthLabel(mafraOverview.health.status),
+        healthMessage: mafraOverview.health.message,
+        lastCheckedAt: mafraOverview.health.lastCheckedAt,
+        healthDurationMs: mafraOverview.health.durationMs,
+        healthSupported: connector.healthSupported,
+        healthStale: mafraOverview.health.stale,
       };
     }
 

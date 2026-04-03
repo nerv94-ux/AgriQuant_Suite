@@ -1,6 +1,7 @@
 import { ApiProvider } from "@prisma/client";
 import { prisma as db } from "@/components/common/auth/server/prisma";
 import { decryptSecret, encryptSecret, maskSecret } from "./secretCrypto";
+import { getMafraApiKey } from "./mafraItemCodeStore";
 
 const GEMINI_DEFAULTS = {
   enabled: true,
@@ -33,6 +34,14 @@ const ECO_PRICE_DEFAULTS = {
   fromDate: "",
   toDate: "",
   apiUrl: "",
+};
+
+const ECO_CERT_DEFAULTS = {
+  enabled: true,
+  pageNo: 1,
+  numOfRows: 50,
+  type: "JSON" as const,
+  apiUrl: "https://apis.data.go.kr/1543145/ECFRDCERTINFO/getCertDataList",
 };
 
 export type GeminiConfigInput = {
@@ -253,6 +262,124 @@ export type EcoPriceSettingsOverview = {
   }>;
 };
 
+export type NaverSettingsOverview = {
+  provider: "NAVER";
+  keyStatus: {
+    source: "DB" | "ENV" | "NONE";
+    configured: boolean;
+    configuredKeys: string[];
+    maskedClientId: string | null;
+    maskedClientSecret: string | null;
+  };
+  health: {
+    status: "healthy" | "unhealthy" | "unknown";
+    stale: boolean;
+    lastCheckedAt: string | null;
+    durationMs: number | null;
+    message: string;
+    requestId: string | null;
+  };
+  config: {
+    mode: "db-or-env";
+    searchEnabled: boolean;
+    datalabSearchTrendEnabled: boolean;
+    datalabShoppingInsightEnabled: boolean;
+  };
+  recentLogs: Array<{
+    id: string;
+    requestId: string;
+    ok: boolean;
+    appId: string | null;
+    durationMs: number;
+    errorCategory: string | null;
+    message: string | null;
+    createdAt: string;
+  }>;
+};
+
+export type NaverRuntimeConfig = {
+  clientId: string | null;
+  clientSecret: string | null;
+  keySource: "DB" | "ENV" | "NONE";
+};
+
+export type EcoCertConfigInput = {
+  enabled: boolean;
+  apiUrl: string;
+  pageNo: number;
+  numOfRows: number;
+  type: "JSON" | "XML";
+  updatedByEmail?: string | null;
+};
+
+export type EcoCertRuntimeConfig = {
+  enabled: boolean;
+  serviceKey: string | null;
+  apiUrl: string;
+  pageNo: number;
+  numOfRows: number;
+  type: "JSON" | "XML";
+};
+
+export type EcoCertSettingsOverview = {
+  provider: "ECO_CERT";
+  keyStatus: {
+    configured: boolean;
+    maskedServiceKey: string | null;
+  };
+  health: {
+    status: "healthy" | "unhealthy" | "unknown";
+    stale: boolean;
+    lastCheckedAt: string | null;
+    durationMs: number | null;
+    message: string;
+    requestId: string | null;
+  };
+  config: {
+    enabled: boolean;
+    apiUrl: string;
+    pageNo: number;
+    numOfRows: number;
+    type: "JSON" | "XML";
+  };
+  recentLogs: Array<{
+    id: string;
+    requestId: string;
+    ok: boolean;
+    appId: string | null;
+    durationMs: number;
+    errorCategory: string | null;
+    message: string | null;
+    createdAt: string;
+  }>;
+};
+
+export type MafraSettingsOverview = {
+  provider: "GARAK";
+  keyStatus: {
+    source: "DB" | "ENV" | "NONE";
+    configured: boolean;
+  };
+  health: {
+    status: "healthy" | "unhealthy" | "unknown";
+    stale: boolean;
+    lastCheckedAt: string | null;
+    durationMs: number | null;
+    message: string;
+    requestId: string | null;
+  };
+  recentLogs: Array<{
+    id: string;
+    requestId: string;
+    ok: boolean;
+    appId: string | null;
+    durationMs: number;
+    errorCategory: string | null;
+    message: string | null;
+    createdAt: string;
+  }>;
+};
+
 function parsePositiveInt(value: number | null | undefined, fallback: number) {
   if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) {
     return fallback;
@@ -456,6 +583,20 @@ const ECO_PRICE_SECRET_KEYS = {
   API_URL: "ECO_PRICE_API_URL",
 } as const;
 
+const NAVER_SECRET_KEYS = {
+  CLIENT_ID: "NAVER_CLIENT_ID",
+  CLIENT_SECRET: "NAVER_CLIENT_SECRET",
+} as const;
+
+const ECO_CERT_SECRET_KEYS = {
+  SERVICE_KEY: "ECO_CERT_SERVICE_KEY",
+  ENABLED: "ECO_CERT_ENABLED",
+  PAGE_NO: "ECO_CERT_PAGE_NO",
+  NUM_OF_ROWS: "ECO_CERT_NUM_OF_ROWS",
+  TYPE: "ECO_CERT_TYPE",
+  API_URL: "ECO_CERT_API_URL",
+} as const;
+
 function parseEnabledValue(value: string | null) {
   if (!value) {
     return ECOUNT_DEFAULTS.enabled;
@@ -482,6 +623,10 @@ function parseYmd(value: string | null) {
     return "";
   }
   return /^\d{8}$/.test(trimmed) ? trimmed : "";
+}
+
+function parseEcoCertType(value: string | null): "JSON" | "XML" {
+  return value?.trim().toUpperCase() === "XML" ? "XML" : "JSON";
 }
 
 async function saveEcountPlainValue(params: {
@@ -793,6 +938,160 @@ export async function getEcoPriceRuntimeConfig(): Promise<EcoPriceRuntimeConfig>
   };
 }
 
+async function saveNaverPlainValue(params: {
+  keyName: (typeof NAVER_SECRET_KEYS)[keyof typeof NAVER_SECRET_KEYS];
+  value: string;
+  updatedByEmail?: string | null;
+}) {
+  await saveSecretPlainValue({
+    provider: ApiProvider.NAVER,
+    keyName: params.keyName,
+    value: params.value.trim(),
+    updatedByEmail: params.updatedByEmail ?? null,
+  });
+}
+
+export async function saveNaverSecret(params: {
+  clientId: string;
+  clientSecret: string;
+  updatedByEmail?: string | null;
+}) {
+  await Promise.all([
+    saveNaverPlainValue({
+      keyName: NAVER_SECRET_KEYS.CLIENT_ID,
+      value: params.clientId,
+      updatedByEmail: params.updatedByEmail ?? null,
+    }),
+    saveNaverPlainValue({
+      keyName: NAVER_SECRET_KEYS.CLIENT_SECRET,
+      value: params.clientSecret,
+      updatedByEmail: params.updatedByEmail ?? null,
+    }),
+  ]);
+
+  await saveApiAuditLog({
+    provider: ApiProvider.NAVER,
+    action: "SECRET_UPDATED",
+    actorEmail: params.updatedByEmail ?? null,
+    detail: `${NAVER_SECRET_KEYS.CLIENT_ID},${NAVER_SECRET_KEYS.CLIENT_SECRET}`,
+  });
+}
+
+export async function getNaverRuntimeConfig(): Promise<NaverRuntimeConfig> {
+  const [dbClientId, dbClientSecret] = await Promise.all([
+    getSecretPlainValue(ApiProvider.NAVER, NAVER_SECRET_KEYS.CLIENT_ID),
+    getSecretPlainValue(ApiProvider.NAVER, NAVER_SECRET_KEYS.CLIENT_SECRET),
+  ]);
+
+  const envClientId = process.env.NAVER_CLIENT_ID?.trim() || null;
+  const envClientSecret = process.env.NAVER_CLIENT_SECRET?.trim() || null;
+  const trimmedDbClientId = dbClientId?.trim() || null;
+  const trimmedDbClientSecret = dbClientSecret?.trim() || null;
+  const clientId = trimmedDbClientId || envClientId;
+  const clientSecret = trimmedDbClientSecret || envClientSecret;
+  const keySource = trimmedDbClientId || trimmedDbClientSecret ? "DB" : envClientId || envClientSecret ? "ENV" : "NONE";
+
+  return {
+    clientId,
+    clientSecret,
+    keySource,
+  };
+}
+
+async function saveEcoCertPlainValue(params: {
+  keyName: (typeof ECO_CERT_SECRET_KEYS)[keyof typeof ECO_CERT_SECRET_KEYS];
+  value: string;
+  updatedByEmail?: string | null;
+}) {
+  await saveSecretPlainValue({
+    provider: ApiProvider.GARAK,
+    keyName: params.keyName,
+    value: params.value.trim(),
+    updatedByEmail: params.updatedByEmail ?? null,
+  });
+}
+
+export async function saveEcoCertSecret(params: {
+  serviceKey: string;
+  updatedByEmail?: string | null;
+}) {
+  await saveEcoCertPlainValue({
+    keyName: ECO_CERT_SECRET_KEYS.SERVICE_KEY,
+    value: params.serviceKey.trim(),
+    updatedByEmail: params.updatedByEmail ?? null,
+  });
+
+  await saveApiAuditLog({
+    provider: ApiProvider.GARAK,
+    action: "SECRET_UPDATED",
+    actorEmail: params.updatedByEmail ?? null,
+    detail: ECO_CERT_SECRET_KEYS.SERVICE_KEY,
+  });
+}
+
+export async function saveEcoCertConfig(input: EcoCertConfigInput) {
+  await Promise.all([
+    saveEcoCertPlainValue({
+      keyName: ECO_CERT_SECRET_KEYS.ENABLED,
+      value: input.enabled ? "1" : "0",
+      updatedByEmail: input.updatedByEmail ?? null,
+    }),
+    saveEcoCertPlainValue({
+      keyName: ECO_CERT_SECRET_KEYS.API_URL,
+      value: input.apiUrl.trim(),
+      updatedByEmail: input.updatedByEmail ?? null,
+    }),
+    saveEcoCertPlainValue({
+      keyName: ECO_CERT_SECRET_KEYS.PAGE_NO,
+      value: String(Math.round(input.pageNo)),
+      updatedByEmail: input.updatedByEmail ?? null,
+    }),
+    saveEcoCertPlainValue({
+      keyName: ECO_CERT_SECRET_KEYS.NUM_OF_ROWS,
+      value: String(Math.round(input.numOfRows)),
+      updatedByEmail: input.updatedByEmail ?? null,
+    }),
+    saveEcoCertPlainValue({
+      keyName: ECO_CERT_SECRET_KEYS.TYPE,
+      value: input.type,
+      updatedByEmail: input.updatedByEmail ?? null,
+    }),
+  ]);
+
+  await saveApiAuditLog({
+    provider: ApiProvider.GARAK,
+    action: "CONFIG_UPDATED",
+    actorEmail: input.updatedByEmail ?? null,
+    detail: JSON.stringify({
+      enabled: input.enabled,
+      apiUrl: input.apiUrl.trim(),
+      pageNo: input.pageNo,
+      numOfRows: input.numOfRows,
+      type: input.type,
+    }),
+  });
+}
+
+export async function getEcoCertRuntimeConfig(): Promise<EcoCertRuntimeConfig> {
+  const [serviceKey, enabled, apiUrlRaw, pageNoRaw, numOfRowsRaw, typeRaw] = await Promise.all([
+    getSecretPlainValue(ApiProvider.GARAK, ECO_CERT_SECRET_KEYS.SERVICE_KEY),
+    getSecretPlainValue(ApiProvider.GARAK, ECO_CERT_SECRET_KEYS.ENABLED),
+    getSecretPlainValue(ApiProvider.GARAK, ECO_CERT_SECRET_KEYS.API_URL),
+    getSecretPlainValue(ApiProvider.GARAK, ECO_CERT_SECRET_KEYS.PAGE_NO),
+    getSecretPlainValue(ApiProvider.GARAK, ECO_CERT_SECRET_KEYS.NUM_OF_ROWS),
+    getSecretPlainValue(ApiProvider.GARAK, ECO_CERT_SECRET_KEYS.TYPE),
+  ]);
+
+  return {
+    enabled: parseEnabledValue(enabled),
+    serviceKey: serviceKey?.trim() || null,
+    apiUrl: apiUrlRaw?.trim() || ECO_CERT_DEFAULTS.apiUrl,
+    pageNo: parsePositiveInt(pageNoRaw ? Number(pageNoRaw) : null, ECO_CERT_DEFAULTS.pageNo),
+    numOfRows: parsePositiveInt(numOfRowsRaw ? Number(numOfRowsRaw) : null, ECO_CERT_DEFAULTS.numOfRows),
+    type: parseEcoCertType(typeRaw),
+  };
+}
+
 export async function saveApiAuditLog(params: {
   provider: ApiProvider;
   action: string;
@@ -1054,6 +1353,178 @@ export async function getEcoPriceSettingsOverview(): Promise<EcoPriceSettingsOve
       toDate: runtimeConfig.toDate,
     },
     recentLogs: logs.map((log) => ({
+      id: log.id,
+      requestId: log.requestId,
+      ok: log.ok,
+      appId: log.appId,
+      durationMs: log.durationMs,
+      errorCategory: log.errorCategory,
+      message: log.message,
+      createdAt: log.createdAt.toISOString(),
+    })),
+  };
+}
+
+export async function getEcoCertSettingsOverview(): Promise<EcoCertSettingsOverview> {
+  const [runtimeConfig, logs, latestHealthLog] = await Promise.all([
+    getEcoCertRuntimeConfig(),
+    db.apiCallLog.findMany({
+      where: { source: "ECO_CERT" },
+      orderBy: { createdAt: "desc" },
+      take: 10,
+    }),
+    db.apiCallLog.findFirst({
+      where: {
+        source: "ECO_CERT",
+        appId: "admin-health-check",
+      },
+      orderBy: { createdAt: "desc" },
+    }),
+  ]);
+
+  const staleThresholdMs = 5 * 60 * 1000;
+  const lastCheckedAt = latestHealthLog?.createdAt ?? null;
+  const stale = lastCheckedAt ? Date.now() - lastCheckedAt.getTime() > staleThresholdMs : true;
+
+  return {
+    provider: "ECO_CERT",
+    keyStatus: {
+      configured: Boolean(runtimeConfig.serviceKey),
+      maskedServiceKey: runtimeConfig.serviceKey ? maskSecret(runtimeConfig.serviceKey) : null,
+    },
+    health: {
+      status: latestHealthLog ? (latestHealthLog.ok ? "healthy" : "unhealthy") : "unknown",
+      stale,
+      lastCheckedAt: lastCheckedAt ? lastCheckedAt.toISOString() : null,
+      durationMs: latestHealthLog?.durationMs ?? null,
+      message: latestHealthLog?.message ?? "아직 친환경 인증정보 API 연결 확인 기록이 없습니다.",
+      requestId: latestHealthLog?.requestId ?? null,
+    },
+    config: {
+      enabled: runtimeConfig.enabled,
+      apiUrl: runtimeConfig.apiUrl,
+      pageNo: runtimeConfig.pageNo,
+      numOfRows: runtimeConfig.numOfRows,
+      type: runtimeConfig.type,
+    },
+    recentLogs: logs.map((log) => ({
+      id: log.id,
+      requestId: log.requestId,
+      ok: log.ok,
+      appId: log.appId,
+      durationMs: log.durationMs,
+      errorCategory: log.errorCategory,
+      message: log.message,
+      createdAt: log.createdAt.toISOString(),
+    })),
+  };
+}
+
+export async function getNaverSettingsOverview(): Promise<NaverSettingsOverview> {
+  const [runtimeConfig, logs, latestHealthLog] = await Promise.all([
+    getNaverRuntimeConfig(),
+    db.apiCallLog.findMany({
+      where: { source: "NAVER" },
+      orderBy: { createdAt: "desc" },
+      take: 10,
+    }),
+    db.apiCallLog.findFirst({
+      where: {
+        source: "NAVER",
+        appId: "admin-health-check",
+      },
+      orderBy: { createdAt: "desc" },
+    }),
+  ]);
+  const clientId = runtimeConfig.clientId ?? "";
+  const clientSecret = runtimeConfig.clientSecret ?? "";
+  const configuredKeys = [
+    clientId ? "NAVER_CLIENT_ID" : null,
+    clientSecret ? "NAVER_CLIENT_SECRET" : null,
+  ].filter(Boolean) as string[];
+  const lastCheckedAt = latestHealthLog?.createdAt ?? null;
+  const staleThresholdMs = 5 * 60 * 1000;
+  const stale = lastCheckedAt ? Date.now() - lastCheckedAt.getTime() > staleThresholdMs : true;
+
+  return {
+    provider: "NAVER",
+    keyStatus: {
+      source: runtimeConfig.keySource,
+      configured: configuredKeys.length === 2,
+      configuredKeys,
+      maskedClientId: clientId ? maskSecret(clientId) : null,
+      maskedClientSecret: clientSecret ? maskSecret(clientSecret) : null,
+    },
+    health: {
+      status: latestHealthLog ? (latestHealthLog.ok ? "healthy" : "unhealthy") : "unknown",
+      stale,
+      lastCheckedAt: lastCheckedAt ? lastCheckedAt.toISOString() : null,
+      durationMs: latestHealthLog?.durationMs ?? null,
+      message: latestHealthLog?.message ?? "아직 네이버 API 연결 확인 기록이 없습니다.",
+      requestId: latestHealthLog?.requestId ?? null,
+    },
+    config: {
+      mode: "db-or-env",
+      searchEnabled: true,
+      datalabSearchTrendEnabled: true,
+      datalabShoppingInsightEnabled: true,
+    },
+    recentLogs: logs.map((log) => ({
+      id: log.id,
+      requestId: log.requestId,
+      ok: log.ok,
+      appId: log.appId,
+      durationMs: log.durationMs,
+      errorCategory: log.errorCategory,
+      message: log.message,
+      createdAt: log.createdAt.toISOString(),
+    })),
+  };
+}
+
+export async function getMafraSettingsOverview(): Promise<MafraSettingsOverview> {
+  const [apiKey, latestHealthLog, recentLogs] = await Promise.all([
+    getMafraApiKey(),
+    db.apiCallLog.findFirst({
+      where: {
+        source: "GARAK",
+        appId: "admin-health-check",
+      },
+      orderBy: { createdAt: "desc" },
+    }),
+    db.apiCallLog.findMany({
+      where: {
+        source: "GARAK",
+        appId: {
+          startsWith: "admin-mafra",
+        },
+      },
+      orderBy: { createdAt: "desc" },
+      take: 10,
+    }),
+  ]);
+
+  const envKey = process.env.MAFRA_API_KEY?.trim() || null;
+  const source: "DB" | "ENV" | "NONE" = apiKey ? (envKey && apiKey === envKey ? "ENV" : "DB") : "NONE";
+  const lastCheckedAt = latestHealthLog?.createdAt ?? null;
+  const staleThresholdMs = 5 * 60 * 1000;
+  const stale = lastCheckedAt ? Date.now() - lastCheckedAt.getTime() > staleThresholdMs : true;
+
+  return {
+    provider: "GARAK",
+    keyStatus: {
+      source,
+      configured: Boolean(apiKey),
+    },
+    health: {
+      status: latestHealthLog ? (latestHealthLog.ok ? "healthy" : "unhealthy") : "unknown",
+      stale,
+      lastCheckedAt: lastCheckedAt ? lastCheckedAt.toISOString() : null,
+      durationMs: latestHealthLog?.durationMs ?? null,
+      message: latestHealthLog?.message ?? "아직 전국 도매시장 경매 API 연결 확인 기록이 없습니다.",
+      requestId: latestHealthLog?.requestId ?? null,
+    },
+    recentLogs: recentLogs.map((log) => ({
       id: log.id,
       requestId: log.requestId,
       ok: log.ok,

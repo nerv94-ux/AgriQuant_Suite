@@ -95,7 +95,7 @@ export function AdminEventTimeline({ items }: { items: AdminEventItem[] }) {
               </span>
             </div>
             <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px] text-zinc-500">
-              <span>{new Date(item.createdAt).toLocaleString()}</span>
+              <span suppressHydrationWarning>{new Date(item.createdAt).toLocaleString()}</span>
               <span>•</span>
               <span>{item.actor}</span>
             </div>

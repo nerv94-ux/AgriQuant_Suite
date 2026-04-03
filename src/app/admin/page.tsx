@@ -31,7 +31,14 @@ export default async function AdminOverviewPage() {
   const appCount = apps.length;
   const configuredApiCount =
     (geminiOverview.keyStatus.configured ? 1 : 0) +
-    ["GARAK_API_KEY", "ECOUNT_API_KEY", "ECOUNT_COMPANY_CODE", "NAVER_CLIENT_ID", "NAVER_CLIENT_SECRET"]
+    [
+      "GARAK_API_KEY",
+      "ECOUNT_API_KEY",
+      "ECOUNT_COMPANY_CODE",
+      "NAVER_CLIENT_ID",
+      "NAVER_CLIENT_SECRET",
+      "ECO_CERT_SERVICE_KEY",
+    ]
       .reduce((count, key) => count + (process.env[key] ? 1 : 0), 0);
   const unhealthyCount = [geminiOverview.health.status].filter((status) => status === "unhealthy").length;
 
@@ -75,7 +82,7 @@ export default async function AdminOverviewPage() {
     },
     api: {
       eyebrow: "연결 준비",
-      value: `${configuredApiCount} / 5`,
+      value: `${configuredApiCount} / 6`,
       helper: geminiOverview.keyStatus.configured
         ? "Gemini 키 저장 상태 정상"
         : "Gemini 키 저장 필요",

@@ -5,6 +5,7 @@ export type BaseMetaSource =
   | "ECOUNT"
   | "KMA"
   | "ECO_PRICE"
+  | "ECO_CERT"
   | "NAVER"
   | "GARAK"
   | "DB"
