@@ -1,0 +1,2 @@
+-- AlterTable (SQLite: BOOLEAN = INTEGER)
+ALTER TABLE "DeskProduct" ADD COLUMN "deskEnabled" INTEGER NOT NULL DEFAULT 1;

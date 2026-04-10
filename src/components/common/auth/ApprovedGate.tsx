@@ -23,7 +23,7 @@ export function ApprovedGate({ children }: { children: ReactNode }) {
 
   if (status === "loading") {
     return (
-      <div className="min-h-screen flex items-center justify-center text-sm text-zinc-600 dark:text-zinc-300">
+      <div className="min-h-screen flex items-center justify-center text-sm text-zinc-600">
         인증 상태를 확인하고 있습니다...
       </div>
     );

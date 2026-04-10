@@ -92,9 +92,10 @@ export const connectorCatalog: ConnectorCatalogItem[] = [
     id: "mafra-wholesale",
     name: "전국 도매시장 경매 API",
     category: "Agri Wholesale Data",
-    description: "실시간 경락, 정산가격, 기간 집계와 코드사전을 운영형으로 테스트하는 커넥터입니다.",
+    description:
+      "실시간 경락·정산가격·소매가격·코드사전 등 도매 데이터와, 농산물 잔류농약 분석 등 품질·안전 API를 같은 MAFRA 인증키로 묶어 관리합니다. 화면에서는 시세/코드와 품질을 구역으로 나눕니다.",
     requiredKeys: ["MAFRA_API_KEY"],
-    usageScope: "도매시장 시세/거래 분석 모듈",
+    usageScope: "도매 시세·거래 분석 및 품질·안전(동일 키)",
     bindingMode: "program-selectable",
     nextStep: "프로그램 입력(시장명/품목명)을 코드 자동해석해 메인 API 질의로 연결합니다.",
     healthSupported: true,

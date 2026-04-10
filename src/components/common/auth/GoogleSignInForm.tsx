@@ -157,18 +157,17 @@ export function GoogleSignInForm({
     <section
       className={[
         "w-full max-w-md mx-auto",
-        "rounded-3xl border border-white/10",
-        "bg-black/30 dark:bg-black/40",
-        "backdrop-blur-xl",
-        "shadow-[0_20px_60px_-35px_rgba(0,0,0,0.9)]",
+        "rounded-3xl border border-zinc-200",
+        "bg-white",
+        "shadow-[0_20px_50px_-30px_rgba(0,0,0,0.12)]",
         "p-6 sm:p-7",
         className ?? "",
       ].join(" ")}
     >
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h2 className="text-xl font-semibold text-white/95">로그인</h2>
-          <p className="mt-1 text-sm text-white/70">
+          <h2 className="text-xl font-semibold text-zinc-900">로그인</h2>
+          <p className="mt-1 text-sm text-zinc-600">
             Google 계정으로 안전하게 로그인하세요.
           </p>
         </div>
@@ -186,24 +185,24 @@ export function GoogleSignInForm({
             "h-12",
             "transition",
             "disabled:opacity-60 disabled:cursor-not-allowed",
-            "border border-white/10",
-            "bg-white/10 hover:bg-white/15 active:bg-white/20",
+            "border border-zinc-200",
+            "bg-white hover:bg-zinc-50 active:bg-zinc-100",
           ].join(" ")}
         >
           <GoogleIcon />
-          <span className="text-sm font-semibold text-white/95">{buttonText}</span>
+          <span className="text-sm font-semibold text-zinc-800">{buttonText}</span>
           {isBusy ? (
-            <span className="absolute right-4 text-xs text-white/60">처리 중...</span>
+            <span className="absolute right-4 text-xs text-zinc-500">처리 중...</span>
           ) : null}
         </button>
       </div>
 
       {error ? (
-        <p className="mt-3 text-sm text-red-200/90 leading-relaxed">
+        <p className="mt-3 text-sm text-red-600 leading-relaxed">
           {error}
         </p>
       ) : (
-        <p className="mt-3 text-xs text-white/55 leading-relaxed">
+        <p className="mt-3 text-xs text-zinc-500 leading-relaxed">
           Google 로그인은 설정이 완료되면 정상적으로 동작합니다.
         </p>
       )}

@@ -14,6 +14,13 @@ const SOURCE = "GARAK" as const;
 const BASE_HOST = "http://211.237.50.150:7080/openapi";
 const API_URL = "Grid_20240625000000000653_1";
 
+/** OpenAPI가 건수 1일 때 `row`를 배열이 아닌 단일 객체로 주는 경우 */
+function normalizeRowList(value: unknown): Record<string, unknown>[] {
+  if (value == null) return [];
+  const raw = Array.isArray(value) ? value : [value];
+  return raw.filter((row): row is Record<string, unknown> => Boolean(row) && typeof row === "object");
+}
+
 function parsePayload(rawText: string): {
   code: string;
   message: string;
@@ -24,7 +31,7 @@ function parsePayload(rawText: string): {
   const rootKey = Object.keys(parsed)[0];
   const root = (rootKey ? parsed[rootKey] : parsed) as Record<string, unknown>;
   const result = (root.result ?? {}) as Record<string, unknown>;
-  const rowsRaw = Array.isArray(root.row) ? root.row : [];
+  const rowsRaw = normalizeRowList(root.row);
   const rows = rowsRaw
     .filter((row): row is Record<string, unknown> => Boolean(row) && typeof row === "object")
     .map((row) => ({

@@ -16,13 +16,13 @@ export function AppShell({
   actions,
 }: AppShellProps) {
   return (
-    <div className="min-h-screen px-4 py-10 bg-zinc-50 dark:bg-black">
+    <div className="min-h-screen px-4 py-10 bg-zinc-100">
       <div className={`${maxWidthClassName} mx-auto`}>
         <div className="mb-6 flex items-start justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-semibold text-zinc-950 dark:text-zinc-50">{title}</h1>
+            <h1 className="text-2xl font-semibold text-zinc-900">{title}</h1>
             {description ? (
-              <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-300 leading-relaxed">
+              <p className="mt-2 text-sm text-zinc-600 leading-relaxed">
                 {description}
               </p>
             ) : null}

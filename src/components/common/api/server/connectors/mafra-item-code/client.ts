@@ -15,23 +15,47 @@ import type {
 
 const SOURCE = "GARAK" as const;
 const BASE_HOST = "http://211.237.50.150:7080/openapi";
+/** 명세: `품목 코드.xls` — 계층·CSV 대조는 `docs/mafra-openapi-notes.md` */
 const ITEM_CODE_API_URL = "Grid_20240626000000000668_1";
 const CACHE_TTL_MS = 60 * 60 * 1000;
 const PAGE_SIZE = 1000;
 
+/** 관리자 API 로그용 — 긴 오류 문구 축약 */
+function shortMessageForApiLog(full: string): string {
+  const t = full.trim();
+  if (t.includes("INFO-100")) return "INFO-100 품목코드 그리드 인증 실패 (포털 권한·DB 저장 키)";
+  if (t.length > 200) return `${t.slice(0, 197)}…`;
+  return t;
+}
+
+function itemRowFromRecord(item: Record<string, unknown>): MafraItemCode {
+  return {
+    LARGE: String(item.LARGE ?? ""),
+    MID: String(item.MID ?? ""),
+    SMALL: String(item.SMALL ?? ""),
+    LARGENAME: String(item.LARGENAME ?? ""),
+    MIDNAME: String(item.MIDNAME ?? ""),
+    GOODNAME: String(item.GOODNAME ?? ""),
+    GUBN: String(item.GUBN ?? ""),
+  };
+}
+
+/** OpenAPI `row` 가 단일 객체로 오는 경우(엑셀 샘플·JSON 변환) 대비 */
 function normalizeRows(value: unknown): MafraItemCode[] {
-  if (!Array.isArray(value)) return [];
-  return value
-    .filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === "object")
-    .map((item) => ({
-      LARGE: String(item.LARGE ?? ""),
-      MID: String(item.MID ?? ""),
-      SMALL: String(item.SMALL ?? ""),
-      LARGENAME: String(item.LARGENAME ?? ""),
-      MIDNAME: String(item.MIDNAME ?? ""),
-      GOODNAME: String(item.GOODNAME ?? ""),
-      GUBN: String(item.GUBN ?? ""),
-    }));
+  if (value == null) return [];
+  const raw = Array.isArray(value) ? value : [value];
+  return raw
+    .filter((row): row is Record<string, unknown> => Boolean(row) && typeof row === "object")
+    .map((row) => itemRowFromRecord(row));
+}
+
+function extractGridRowPayload(root: Record<string, unknown>): unknown {
+  const keys = ["row", "rows", "data", "list", "items"] as const;
+  for (const k of keys) {
+    const v = root[k];
+    if (v != null) return v;
+  }
+  return undefined;
 }
 
 function parsePayload(rawText: string): {
@@ -43,13 +67,22 @@ function parsePayload(rawText: string): {
   const parsed = JSON.parse(rawText) as Record<string, unknown>;
   const rootKey = Object.keys(parsed)[0];
   const root = (rootKey ? parsed[rootKey] : parsed) as Record<string, unknown>;
-  const result = (root.result ?? {}) as Record<string, unknown>;
-  const totalCount = Number(root.totalCnt ?? 0);
+  const result = (root.result ?? (root as { RESULT?: Record<string, unknown> }).RESULT ?? {}) as Record<
+    string,
+    unknown
+  >;
+  const totalCnt = Number(root.totalCnt ?? root.total_cnt ?? 0);
+  const codeRaw = result.code ?? result.CODE ?? root.code;
+  let rows = normalizeRows(extractGridRowPayload(root));
+  if (rows.length === 0) {
+    rows = normalizeRows(root.row);
+  }
+
   return {
-    code: String(result.code ?? ""),
-    message: String(result.message ?? ""),
-    totalCount: Number.isFinite(totalCount) ? totalCount : 0,
-    rows: normalizeRows(root.row),
+    code: String(codeRaw ?? "").trim(),
+    message: String(result.message ?? result.MESSAGE ?? ""),
+    totalCount: Number.isFinite(totalCnt) ? totalCnt : 0,
+    rows,
   };
 }
 
@@ -85,7 +118,11 @@ async function fetchItemCodesFromMafra(apiKey: string, requestId: string) {
     }
 
     const payload = parsePayload(text);
-    if (payload.code !== "INFO-000" && payload.code !== "INFO-200") {
+    const gridOk =
+      payload.code === "INFO-000" ||
+      payload.code === "INFO-200" ||
+      (payload.rows.length > 0 && payload.code !== "INFO-100" && !payload.code.startsWith("ERROR"));
+    if (!gridOk) {
       return buildError({
         source: SOURCE,
         requestId,
@@ -96,7 +133,7 @@ async function fetchItemCodesFromMafra(apiKey: string, requestId: string) {
             : payload.code === "ERROR-350"
               ? ApiErrorCategory.RATE_LIMIT
               : ApiErrorCategory.VALIDATION_ERROR,
-        message: `${payload.code} ${payload.message}`,
+        message: [payload.code, payload.message].filter(Boolean).join(" ").trim() || "품목코드 API 오류",
       });
     }
 
@@ -150,7 +187,12 @@ export async function syncMafraItemCodes(params: {
 
   const fetched = await fetchItemCodesFromMafra(apiKey, params.requestId);
   if (!fetched.ok) {
-    await saveApiLog({ ok: false, meta: fetched.meta, appId: params.appId, message: fetched.message });
+    await saveApiLog({
+      ok: false,
+      meta: fetched.meta,
+      appId: params.appId,
+      message: shortMessageForApiLog(fetched.message),
+    });
     return fetched as ApiResponse<MafraItemCodeSyncResponseData>;
   }
 
@@ -206,9 +248,14 @@ export async function searchMafraItemCodes(params: {
   const normalizedQuery = query.toLowerCase();
   const matches = cache.items
     .filter((row) => {
+      const largeName = row.LARGENAME.toLowerCase();
       const midName = row.MIDNAME.toLowerCase();
       const goodName = row.GOODNAME.toLowerCase();
-      return midName.includes(normalizedQuery) || goodName.includes(normalizedQuery);
+      return (
+        largeName.includes(normalizedQuery) ||
+        midName.includes(normalizedQuery) ||
+        goodName.includes(normalizedQuery)
+      );
     })
     .slice(0, 50);
 

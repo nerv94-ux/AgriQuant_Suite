@@ -24,6 +24,87 @@ enum ApiProvider {
   GARAK
 }
 
+/** 어그리쿼트 데스크 품목 출처 */
+enum DeskProductSource {
+  ECOUNT
+  MANUAL
+}
+
+enum DeskCompetitorSnapshotStatus {
+  SUCCESS
+  FAILED
+}
+
+model DeskProduct {
+  id                 String              @id @default(cuid())
+  /** 이카운트 품목코드 — 동기화 시 고유 매칭용 */
+  ecountProdCode     String?             @unique
+  /** 품목코드 `코드*구분` 에서 `*` 뒤 라벨(제품·원재료 등) — 목록 유형 필터에 사용 */
+  ecountCategorySuffix String?
+  /** 마지막 동기화 시 이카운트 품목명·규격 문자열 기준 지문(덮어쓰기·검토 감지) */
+  lastApiFingerprint   String?
+  /** true면 동기화가 name/specLabel을 자동 덮어쓰지 않음(담당자 확정 표시명) */
+  displayLocked        Boolean             @default(false)
+  /** displayLocked 저장 시점의 API 지문 — 이후 API가 바뀌면 needsSourceReview */
+  lockedAtFingerprint    String?
+  /** 이카운트 원문이 확정 이후 바뀌었을 가능성(담당자 재확인 권장) */
+  needsSourceReview    Boolean             @default(false)
+  curatedAt            DateTime?
+  curatedByUserId      String?
+  /** 데스크에서 다룰 품목 여부 — 실무에서 켠 것만 기본 작업 대상으로 볼 때 필터 */
+  deskEnabled        Boolean             @default(true)
+  name               String
+  specLabel          String
+  /** 실무 정리용 포장단위(이카운트 동기화로는 채우지 않음) */
+  packageUnit        String              @default("")
+  /** 전국 공통 품목 대·중·소 코드(농식품 OpenAPI 품목코드) — 이카운트 동기화로는 채우지 않음 */
+  mafraLarge         String?
+  mafraMid           String?
+  mafraSmall         String?
+  /** 단위·등급·포장 코드 ID(CODEID) — 비워 두면 가격비교 시 해당 축 미적용 */
+  mafraUnitCodeId    String?
+  mafraGrdCodeId     String?
+  mafraFrmlCodeId    String?
+  /** 친환경 가격 API `cond[ctgry_cd::EQ]` — 비우면 MAFRA 대·중·소로 추정 */
+  ecoCtgryCd         String?
+  /** `cond[item_cd::EQ]` */
+  ecoItemCd          String?
+  /** `cond[vrty_cd::EQ]` */
+  ecoVrtyCd          String?
+  /** `cond[grd_cd::EQ]` */
+  ecoGrdCd           String?
+  /** `cond[sgg_cd::EQ]` */
+  ecoSggCd           String?
+  /** `cond[mrkt_cd::EQ]` */
+  ecoMrktCd          String?
+  source             DeskProductSource   @default(MANUAL)
+  hasOpenMarketMatch Boolean             @default(false)
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+
+  userDrafts DeskProductUserDraft[]
+  userPreferences DeskProductUserPreference[]
+  competitorSnapshots DeskCompetitorSnapshot[]
+}
+
+/** 데스크 품목 목록 — 사용자별 순서·즐겨찾기·최근 사용 */
+model DeskProductUserPreference {
+  id             String    @id @default(cuid())
+  userId         String
+  deskProductId  String
+  /** 즐겨찾기 — 정렬 시 상단 묶음 */
+  favorite       Boolean   @default(false)
+  /** 목록 내 순서(작을수록 위). null 이면 가나다 묶음(사용자 지정 순서 없음) */
+  sortOrder      Int?
+  lastUsedAt     DateTime?
+
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  deskProduct DeskProduct @relation(fields: [deskProductId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, deskProductId])
+  @@index([userId])
+}
+
 model User {
   id              String          @id @default(cuid())
   name            String?
@@ -37,11 +118,65 @@ model User {
   // 예: registeredAppId = "naver-shopping", "kaksdong-market" 등
   registeredAppId String?
 
+  /** 클라이언트·데스크 등 사용자별 설정 (JSON) */
+  preferences     Json?
+
   accounts        Account[]
   sessions        Session[]
 
+  deskProductDrafts       DeskProductUserDraft[]
+  deskProductPreferences DeskProductUserPreference[]
+  competitorSnapshots   DeskCompetitorSnapshot[]
+
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt
+}
+
+/** 데스크 품목 상세 — 사용자별 판매가·메모 임시 저장 */
+model DeskProductUserDraft {
+  id             String   @id @default(cuid())
+  userId         String
+  deskProductId  String
+  targetPriceWon String   @default("")
+  note           String   @default("")
+  /** 경쟁상품 URL/상품번호 등록(JSON 문자열) */
+  competitorTargetsJson String @default("[]")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  deskProduct DeskProduct @relation(fields: [deskProductId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, deskProductId])
+}
+
+model DeskCompetitorSnapshot {
+  id            String                       @id @default(cuid())
+  userId        String
+  deskProductId String
+  targetId      String
+  label         String                       @default("")
+  source        String                       @default("UNKNOWN")
+  productNo     String                       @default("")
+  url           String
+  canonicalUrl  String                       @default("")
+  price         Int?
+  optionPriceMin Int?
+  optionPriceMax Int?
+  soldOut       Boolean?
+  reviewCount   Int?
+  rating        Float?
+  status        DeskCompetitorSnapshotStatus @default(FAILED)
+  errorMessage  String                       @default("")
+  rawJson       String                       @default("{}")
+  collectedAt   DateTime                     @default(now())
+  createdAt     DateTime                     @default(now())
+
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  deskProduct DeskProduct @relation(fields: [deskProductId], references: [id], onDelete: Cascade)
+
+  @@index([userId, deskProductId, collectedAt])
+  @@index([targetId, collectedAt])
 }
 
 model Account {

@@ -36,6 +36,9 @@ function buildQuery(params: Record<string, string | number | boolean | undefined
   return search.toString();
 }
 
+/** 소매가격 API 명세 예시 조사일 — 관리자 테스트에서 첫 조회가 0건일 때 재시도 */
+const MAFRA_RTLSAL_SAMPLE_EXAMIN_DE = "20150401";
+
 export function MafraAdminCard({ className }: { className?: string }) {
   const [overview, setOverview] = useState<MafraOverview>({ configured: false, source: "NONE" });
   const [apiKeyInput, setApiKeyInput] = useState("");
@@ -47,11 +50,16 @@ export function MafraAdminCard({ className }: { className?: string }) {
   const [cmpName, setCmpName] = useState("한국청과");
   const [itemName, setItemName] = useState("파프리카");
   const [smallCode, setSmallCode] = useState("");
+  /** 소비 트렌드 결합 API — 명세 XML 샘플(2021년 1월)과 동일하게 기본값 */
+  const [agricnsmYear, setAgricnsmYear] = useState("2021");
+  const [agricnsmMonth, setAgricnsmMonth] = useState("1");
 
   const [rltmState, setRltmState] = useState<TestState>("idle");
   const [dataState, setDataState] = useState<TestState>("idle");
   const [infoState, setInfoState] = useState<TestState>("idle");
   const [periodState, setPeriodState] = useState<TestState>("idle");
+  const [rtlsalState, setRtlsalState] = useState<TestState>("idle");
+  const [agricnsmState, setAgricnsmState] = useState<TestState>("idle");
   const [resolveState, setResolveState] = useState<TestState>("idle");
   const [syncState, setSyncState] = useState<TestState>("idle");
 
@@ -59,10 +67,14 @@ export function MafraAdminCard({ className }: { className?: string }) {
   const [dataResult, setDataResult] = useState<QueryResult>(null);
   const [infoResult, setInfoResult] = useState<QueryResult>(null);
   const [periodResult, setPeriodResult] = useState<QueryResult>(null);
+  const [rtlsalResult, setRtlsalResult] = useState<QueryResult>(null);
+  const [agricnsmResult, setAgricnsmResult] = useState<QueryResult>(null);
   const [rltmError, setRltmError] = useState<string | null>(null);
   const [dataError, setDataError] = useState<string | null>(null);
   const [infoError, setInfoError] = useState<string | null>(null);
   const [periodError, setPeriodError] = useState<string | null>(null);
+  const [rtlsalError, setRtlsalError] = useState<string | null>(null);
+  const [agricnsmError, setAgricnsmError] = useState<string | null>(null);
   const [resolvedCodes, setResolvedCodes] = useState<string>("-");
   const [itemCandidates, setItemCandidates] = useState<CodeCandidate[]>([]);
 
@@ -269,6 +281,92 @@ export function MafraAdminCard({ className }: { className?: string }) {
     }
   }
 
+  async function runRtlsal() {
+    setRtlsalState("loading");
+    setRtlsalError(null);
+    try {
+      const base = {
+        startIndex: 1,
+        /** 명세: 샘플 키는 1~5건 구간만 허용하는 경우가 있음 */
+        endIndex: 5,
+      };
+
+      const runFetch = async (examinDe: string) => {
+        const query = buildQuery({ examinDe, ...base });
+        const res = await fetch(`/api/admin/connectors/mafra/rtlsal-price/list?${query}`);
+        return readApiEnvelope<{ rows: unknown[]; totalCount: number }>(res);
+      };
+
+      const primaryDe = saleDate.trim() || MAFRA_RTLSAL_SAMPLE_EXAMIN_DE;
+      let body = await runFetch(primaryDe);
+      if (!body.ok || !body.data) throw new Error(body.message ?? "소매가격 조회 실패");
+
+      let rows = body.data.rows.length;
+      let total = body.data.totalCount;
+      let noticeText = typeof body.message === "string" ? body.message.trim() : "";
+
+      if (rows === 0 && primaryDe !== MAFRA_RTLSAL_SAMPLE_EXAMIN_DE) {
+        const fallback = await runFetch(MAFRA_RTLSAL_SAMPLE_EXAMIN_DE);
+        if (!fallback.ok || !fallback.data) {
+          throw new Error(fallback.message ?? "명세 샘플 일자로 재조회하지 못했습니다.");
+        }
+        if (fallback.data.rows.length > 0) {
+          rows = fallback.data.rows.length;
+          total = fallback.data.totalCount;
+          noticeText = [
+            `조사일 ${primaryDe}는 0건입니다.`,
+            `명세 샘플 일자(${MAFRA_RTLSAL_SAMPLE_EXAMIN_DE})로 재조회해 ${rows}건을 받았습니다. API 연동은 정상으로 보입니다.`,
+            typeof fallback.message === "string" ? fallback.message.trim() : "",
+          ]
+            .filter(Boolean)
+            .join(" ");
+        } else {
+          noticeText = [
+            noticeText || `조사일 ${primaryDe}: 0건.`,
+            `샘플 일자(${MAFRA_RTLSAL_SAMPLE_EXAMIN_DE})로도 0건입니다. 키 권한·서비스 상태를 확인해 주세요.`,
+          ].join(" ");
+        }
+      } else if (rows > 0) {
+        noticeText = noticeText || `소매가격 ${rows}건 조회됨 (조사일 ${primaryDe}).`;
+      }
+
+      setRtlsalResult({ rows, total });
+      if (noticeText) setNotice(noticeText);
+      setRtlsalState("done");
+    } catch (error) {
+      setRtlsalState("error");
+      const message = error instanceof Error ? error.message : "소매가격 조회 실패";
+      setRtlsalError(message);
+      setNotice(message);
+    }
+  }
+
+  async function runAgricnsmTrnd() {
+    setAgricnsmState("loading");
+    setAgricnsmError(null);
+    try {
+      const query = buildQuery({
+        CRTR_YEAR: agricnsmYear.trim(),
+        CRTR_MONTH: agricnsmMonth.trim(),
+        startIndex: 1,
+        endIndex: 5,
+      });
+      const res = await fetch(`/api/admin/connectors/mafra/agricnsm-trnd/list?${query}`);
+      const body = await readApiEnvelope<{ rows: unknown[]; totalCount: number }>(res);
+      if (!body.ok || !body.data) throw new Error(body.message ?? "소비 트렌드 결합 조회 실패");
+      setAgricnsmResult({ rows: body.data.rows.length, total: body.data.totalCount });
+      if (typeof body.message === "string" && body.message.trim()) {
+        setNotice(body.message);
+      }
+      setAgricnsmState("done");
+    } catch (error) {
+      setAgricnsmState("error");
+      const message = error instanceof Error ? error.message : "소비 트렌드 결합 조회 실패";
+      setAgricnsmError(message);
+      setNotice(message);
+    }
+  }
+
   return (
     <div className={className ?? "rounded-3xl border border-white/10 bg-black/20 p-5"}>
       <div className="space-y-5">
@@ -276,7 +374,7 @@ export function MafraAdminCard({ className }: { className?: string }) {
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <p className="text-sm font-semibold text-white">MAFRA 도매시장 API 상태</p>
-              <p className="mt-1 text-xs text-zinc-400">실시간 경락/정산 가격/기간 집계를 통합 테스트합니다.</p>
+              <p className="mt-1 text-xs text-zinc-400">실시간 경락·정산·기간 집계·소매가격·소비 트렌드 결합을 같은 MAFRA 키로 테스트합니다.</p>
             </div>
             <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-semibold text-zinc-200">
               키 소스 {overview.source}
@@ -304,12 +402,29 @@ export function MafraAdminCard({ className }: { className?: string }) {
         <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
           <p className="text-sm font-semibold text-white">공통 테스트 파라미터</p>
           <div className="mt-3 grid gap-2 md:grid-cols-2">
-            <input value={saleDate} onChange={(e) => setSaleDate(e.target.value)} placeholder="saleDate (YYYYMMDD)" className="h-10 rounded-xl border border-white/10 bg-zinc-950/80 px-3 text-sm text-white outline-none" />
+            <input
+              value={saleDate}
+              onChange={(e) => setSaleDate(e.target.value)}
+              placeholder="saleDate / 소매가격 조사일 EXAMIN_DE (YYYYMMDD)"
+              className="h-10 rounded-xl border border-white/10 bg-zinc-950/80 px-3 text-sm text-white outline-none"
+            />
             <input value={registDt} onChange={(e) => setRegistDt(e.target.value)} placeholder="registDt (YYYYMMDD)" className="h-10 rounded-xl border border-white/10 bg-zinc-950/80 px-3 text-sm text-white outline-none" />
             <input value={whsalName} onChange={(e) => setWhsalName(e.target.value)} placeholder="시장명 (예: 서울가락)" className="h-10 rounded-xl border border-white/10 bg-zinc-950/80 px-3 text-sm text-white outline-none" />
             <input value={cmpName} onChange={(e) => setCmpName(e.target.value)} placeholder="법인명 (예: 한국청과)" className="h-10 rounded-xl border border-white/10 bg-zinc-950/80 px-3 text-sm text-white outline-none" />
             <input value={itemName} onChange={(e) => setItemName(e.target.value)} placeholder="품목명 (예: 파프리카)" className="h-10 rounded-xl border border-white/10 bg-zinc-950/80 px-3 text-sm text-white outline-none md:col-span-2" />
             <input value={smallCode} onChange={(e) => setSmallCode(e.target.value)} placeholder="SMALL 코드 직접 입력 (선택)" className="h-10 rounded-xl border border-white/10 bg-zinc-950/80 px-3 text-sm text-white outline-none md:col-span-2" />
+            <input
+              value={agricnsmYear}
+              onChange={(e) => setAgricnsmYear(e.target.value)}
+              placeholder="트렌드 결합 CRTR_YEAR (예: 2021)"
+              className="h-10 rounded-xl border border-white/10 bg-zinc-950/80 px-3 text-sm text-white outline-none"
+            />
+            <input
+              value={agricnsmMonth}
+              onChange={(e) => setAgricnsmMonth(e.target.value)}
+              placeholder="트렌드 결합 CRTR_MONTH (1~12)"
+              className="h-10 rounded-xl border border-white/10 bg-zinc-950/80 px-3 text-sm text-white outline-none"
+            />
           </div>
           <div className="mt-3 flex flex-wrap gap-2">
             <button type="button" onClick={() => void runCodeResolve()} className="h-9 rounded-xl border border-sky-300/20 bg-sky-500/15 px-3 text-xs font-semibold text-sky-100">
@@ -320,6 +435,11 @@ export function MafraAdminCard({ className }: { className?: string }) {
             </button>
             <span className="self-center text-xs text-zinc-300">{resolvedCodes}</span>
           </div>
+          <p className="mt-2 text-[11px] leading-relaxed text-zinc-500">
+            단위(중량·수량 단위 CODEID)는 위 해석 결과에 포함되지 않습니다. 시장·법인·품목과 별도 그리드이며,{" "}
+            <strong className="font-semibold text-zinc-400">데스크 → 품목 상세 → 「시세·가격비교용 코드」</strong>에서 단위
+            목록을 고르거나 CODEID를 직접 입력합니다.
+          </p>
           {itemCandidates.length > 0 ? (
             <div className="mt-3">
               <p className="mb-2 text-xs text-zinc-400">품목 코드 후보 (클릭 시 SMALL 코드 입력)</p>
@@ -359,6 +479,16 @@ export function MafraAdminCard({ className }: { className?: string }) {
             <button type="button" onClick={() => void runPeriodSummary()} className="h-10 rounded-xl border border-cyan-300/20 bg-cyan-500/15 px-3 text-xs font-semibold text-cyan-100">
               {periodState === "loading" ? "실행 중..." : "기간별 시장 집계"}
             </button>
+            <button type="button" onClick={() => void runRtlsal()} className="h-10 rounded-xl border border-rose-300/20 bg-rose-500/15 px-3 text-xs font-semibold text-rose-100 md:col-span-2">
+              {rtlsalState === "loading" ? "실행 중..." : "농수축산물 소매가격 (Grid 소매)"}
+            </button>
+            <button
+              type="button"
+              onClick={() => void runAgricnsmTrnd()}
+              className="h-10 rounded-xl border border-fuchsia-300/20 bg-fuchsia-500/15 px-3 text-xs font-semibold text-fuchsia-100 md:col-span-2"
+            >
+              {agricnsmState === "loading" ? "실행 중..." : "소매가격·소비 트렌드 결합 (W_DI_AGRICNSMTRND)"}
+            </button>
           </div>
           <div className="mt-3 grid gap-1 text-xs text-zinc-300">
             <p>
@@ -376,6 +506,14 @@ export function MafraAdminCard({ className }: { className?: string }) {
             <p>
               기간별 집계 결과: {periodResult ? `${periodResult.rows} / total ${periodResult.total}` : "-"}
               {periodError ? ` (실패: ${periodError})` : ""}
+            </p>
+            <p>
+              소매가격 결과: {rtlsalResult ? `${rtlsalResult.rows} / total ${rtlsalResult.total}` : "-"}
+              {rtlsalError ? ` (실패: ${rtlsalError})` : ""}
+            </p>
+            <p>
+              소비 트렌드 결합 결과: {agricnsmResult ? `${agricnsmResult.rows} / total ${agricnsmResult.total}` : "-"}
+              {agricnsmError ? ` (실패: ${agricnsmError})` : ""}
             </p>
           </div>
         </section>

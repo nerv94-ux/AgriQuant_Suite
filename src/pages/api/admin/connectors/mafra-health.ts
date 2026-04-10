@@ -1,3 +1,8 @@
+/**
+ * 관리자 커넥터 「전국 도매시장 경매」자동 연결 확인.
+ * `fetchMafraClclnPrcWhlslMrkt`(Grid_20240625000000000656_1) 샘플만 호출합니다.
+ * 단위·품목 등 다른 그리드 권한과는 별개일 수 있습니다.
+ */
 import type { NextApiRequest, NextApiResponse } from "next";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/components/common/auth/server/authOptions";

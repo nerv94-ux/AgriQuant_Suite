@@ -14,3 +14,10 @@ export type MafraUnitCodeSearchResponseData = {
   totalCached: number;
   matches: MafraUnitCode[];
 };
+
+/** 전체 단위 목록(데스크 선택 UI용) */
+export type MafraUnitCodeListResponseData = {
+  updatedAt: string | null;
+  total: number;
+  items: MafraUnitCode[];
+};

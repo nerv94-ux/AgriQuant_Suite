@@ -23,15 +23,15 @@ export function DataTable<TRow>({
   minWidthClassName = "min-w-[720px]",
 }: DataTableProps<TRow>) {
   return (
-    <div className="overflow-hidden rounded-2xl border border-black/10 dark:border-white/10 bg-white/70 dark:bg-white/5 backdrop-blur-xl">
+    <div className="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm">
       <div className="overflow-auto">
         <table className={`${minWidthClassName} w-full text-left text-sm`}>
-          <thead className="bg-zinc-50/70 dark:bg-zinc-900/40">
+          <thead className="bg-zinc-50">
             <tr>
               {columns.map((col) => (
                 <th
                   key={col.key}
-                  className={`px-4 py-3 font-semibold text-zinc-800 dark:text-zinc-100 ${col.className ?? ""}`}
+                  className={`px-4 py-3 font-semibold text-zinc-800 ${col.className ?? ""}`}
                 >
                   {col.header}
                 </th>
@@ -40,7 +40,7 @@ export function DataTable<TRow>({
           </thead>
           <tbody>
             {rows.map((row, idx) => (
-              <tr key={getRowKey(row, idx)} className="border-t border-black/5 dark:border-white/10">
+              <tr key={getRowKey(row, idx)} className="border-t border-zinc-100">
                 {columns.map((col) => (
                   <td key={col.key} className={`px-4 py-3 ${col.className ?? ""}`}>
                     {col.cell(row)}
@@ -53,7 +53,7 @@ export function DataTable<TRow>({
               <tr>
                 <td
                   colSpan={columns.length || 1}
-                  className="px-4 py-10 text-center text-sm text-zinc-600 dark:text-zinc-300"
+                  className="px-4 py-10 text-center text-sm text-zinc-600"
                 >
                   {emptyMessage}
                 </td>

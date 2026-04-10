@@ -14,3 +14,10 @@ export type MafraCorpCodeSearchResponseData = {
   totalCached: number;
   matches: MafraCorpCode[];
 };
+
+/** 전체 법인 목록(데스크 선택 UI용) */
+export type MafraCorpCodeListResponseData = {
+  updatedAt: string | null;
+  total: number;
+  items: MafraCorpCode[];
+};

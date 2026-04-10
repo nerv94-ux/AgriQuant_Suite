@@ -23,7 +23,7 @@ import { EcoCertAdminCard } from "./EcoCertAdminCard";
 import { EcoPriceAdminCard } from "./EcoPriceAdminCard";
 import { GeminiAdminCard } from "./GeminiAdminCard";
 import { KmaAdminCard } from "./KmaAdminCard";
-import { MafraAdminCard } from "./MafraAdminCard";
+import { MafraWholesaleConnectorPanel } from "./MafraWholesaleConnectorPanel";
 import { NaverAdminCard } from "./NaverAdminCard";
 import type { ApiConnectorSummary } from "./types";
 
@@ -1041,39 +1041,44 @@ export function ApiConnectorWorkspace({
   return (
     <section>
       <motion.div
-        className="mb-5 rounded-[28px] border border-white/10 bg-zinc-900/60 p-5 backdrop-blur-xl"
+        className="overflow-hidden rounded-[28px] border border-white/10 bg-zinc-900/60 backdrop-blur-xl xl:max-h-[calc(100vh-7rem)] xl:overflow-y-auto"
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.25, ease: "easeOut" }}
       >
-        <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
-          <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-zinc-500">
-              API Module
-            </p>
-            <h2 className="mt-2 text-2xl font-semibold text-white">커넥터 워크스페이스</h2>
-            <p className="mt-2 max-w-3xl text-sm leading-relaxed text-zinc-300">
-              공용 API를 리스트와 상세 패널 구조로 관리합니다. 현재는 Gemini 운영 기능을 유지하고,
-              앞으로는 프로그램별 API 사용 정책까지 같은 워크스페이스에서 확장할 수 있게 정리합니다.
-            </p>
-          </div>
-          <div className="grid min-w-[320px] gap-3 sm:grid-cols-3">
-            <MetricCard label="연결 수" value={`${summary.total}`} />
-            <MetricCard label="준비 완료" value={`${summary.ready}`} tone="emerald" />
-            <MetricCard label="주의 필요" value={`${summary.attention}`} tone="amber" />
+        <div className="border-b border-white/10 px-5 py-4 sm:px-6">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div className="min-w-0">
+              <nav
+                className="text-[11px] font-semibold uppercase tracking-[0.2em] text-zinc-500"
+                aria-label="현재 위치"
+              >
+                <span className="text-zinc-500">모듈 센터</span>
+                <span className="mx-2 text-zinc-600">·</span>
+                <span className="text-white">API</span>
+                <span className="mx-2 text-zinc-600">·</span>
+                <span className="text-zinc-400">커넥터</span>
+              </nav>
+              <p className="mt-2 max-w-2xl text-sm leading-relaxed text-zinc-400">
+                공용 API 연결을 설정하고 상태·로그를 한곳에서 확인합니다.
+              </p>
+            </div>
+            <div className="grid min-w-[280px] shrink-0 grid-cols-3 gap-2 sm:gap-3 lg:w-[min(100%,380px)]">
+              <MetricCard label="연결 수" value={`${summary.total}`} />
+              <MetricCard label="준비 완료" value={`${summary.ready}`} tone="emerald" />
+              <MetricCard label="주의 필요" value={`${summary.attention}`} tone="amber" />
+            </div>
           </div>
         </div>
-      </motion.div>
 
-      {selectedConnector ? (
+        {selectedConnector ? (
           <motion.div
             key={selectedConnector.id}
-            initial={{ opacity: 0, y: 8 }}
+            initial={{ opacity: 0, y: 6 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.2, ease: "easeOut" }}
-            className="rounded-[28px] border border-white/10 bg-zinc-900/60 p-5 backdrop-blur-xl xl:max-h-[calc(100vh-7rem)] xl:overflow-y-auto"
           >
-            <div className="sticky top-2 z-20 mb-4 rounded-2xl border border-white/10 bg-zinc-950/85 p-3 shadow-[0_14px_40px_-28px_rgba(0,0,0,0.9)] backdrop-blur-xl">
+            <div className="sticky top-0 z-20 border-b border-white/10 bg-zinc-950/90 px-5 py-3 backdrop-blur-xl sm:px-6">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="inline-flex items-center gap-2">
                   <StateDot status={selectedConnector.healthStatus} />
@@ -1183,18 +1188,13 @@ export function ApiConnectorWorkspace({
                     : ""}
               </p>
             </div>
-            <div className="border-b border-white/10 pb-5">
-              <div>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-zinc-500">
-                  Detail Panel
-                </p>
-                <h3 className="mt-2 text-[28px] font-semibold tracking-tight text-white">
-                  {selectedConnector.name}
-                </h3>
-                <p className="mt-2 max-w-3xl text-sm leading-relaxed text-zinc-300">
+
+            <div className="px-5 py-6 sm:px-6">
+              <div className="border-b border-white/10 pb-6">
+                <p className="text-xs font-medium text-zinc-500">{selectedConnector.category}</p>
+                <p className="mt-1 max-w-3xl text-sm leading-relaxed text-zinc-300">
                   {selectedConnector.description}
                 </p>
-              </div>
 
               <div className="mt-5 grid gap-3 lg:grid-cols-3">
                 <InfoCard
@@ -1287,41 +1287,41 @@ export function ApiConnectorWorkspace({
                 {selectedConnector.id === "google-ai" ? (
                   <GeminiAdminCard
                     initialOverview={geminiState}
-                    className="rounded-[28px] border border-white/10 bg-black/20 p-5"
+                    className="rounded-2xl border border-white/10 bg-black/20 p-5"
                     onOverviewChange={applyGeminiOverview}
                   />
                 ) : selectedConnector.id === "ecount" ? (
                   <EcountAdminCard
                     initialOverview={ecountState}
-                    className="rounded-[28px] border border-white/10 bg-black/20 p-5"
+                    className="rounded-2xl border border-white/10 bg-black/20 p-5"
                     onOverviewChange={applyEcountOverview}
                   />
                 ) : selectedConnector.id === "kma-weather" ? (
                   <KmaAdminCard
                     initialOverview={kmaState}
-                    className="rounded-[28px] border border-white/10 bg-black/20 p-5"
+                    className="rounded-2xl border border-white/10 bg-black/20 p-5"
                     onOverviewChange={applyKmaOverview}
                   />
                 ) : selectedConnector.id === "eco-price" ? (
                   <EcoPriceAdminCard
                     initialOverview={ecoPriceState}
-                    className="rounded-[28px] border border-white/10 bg-black/20 p-5"
+                    className="rounded-2xl border border-white/10 bg-black/20 p-5"
                     onOverviewChange={applyEcoPriceOverview}
                   />
                 ) : selectedConnector.id === "eco-cert" ? (
                   <EcoCertAdminCard
                     initialOverview={ecoCertState}
-                    className="rounded-[28px] border border-white/10 bg-black/20 p-5"
+                    className="rounded-2xl border border-white/10 bg-black/20 p-5"
                     onOverviewChange={applyEcoCertOverview}
                   />
                 ) : selectedConnector.id === "naver-shopping" ? (
                   <NaverAdminCard
                     initialOverview={naverState}
-                    className="rounded-[28px] border border-white/10 bg-black/20 p-5"
+                    className="rounded-2xl border border-white/10 bg-black/20 p-5"
                     onOverviewChange={applyNaverOverview}
                   />
                 ) : selectedConnector.id === "mafra-wholesale" ? (
-                  <MafraAdminCard className="rounded-[28px] border border-white/10 bg-black/20 p-5" />
+                  <MafraWholesaleConnectorPanel />
                 ) : (
                   <ConnectorPlaceholderDetail connector={selectedConnector} />
                 )}
@@ -1400,8 +1400,14 @@ export function ApiConnectorWorkspace({
                 </SidePanelCard>
               </aside>
             </div>
+            </div>
           </motion.div>
-        ) : null}
+        ) : (
+          <div className="px-5 py-10 text-center text-sm text-zinc-500 sm:px-6">
+            표시할 커넥터가 없습니다.
+          </div>
+        )}
+      </motion.div>
     </section>
   );
 }
@@ -1423,9 +1429,9 @@ function MetricCard({
         : "border-white/10 bg-white/5";
 
   return (
-    <div className={`rounded-2xl border p-4 ${toneClassName}`}>
-      <p className="text-xs text-zinc-400">{label}</p>
-      <p className="mt-2 text-2xl font-semibold text-white">{value}</p>
+    <div className={`rounded-2xl border p-3 ${toneClassName}`}>
+      <p className="text-[10px] font-medium uppercase tracking-wide text-zinc-500">{label}</p>
+      <p className="mt-1.5 text-lg font-semibold tabular-nums text-white">{value}</p>
     </div>
   );
 }
@@ -1451,7 +1457,7 @@ function StatusBadge({
 
 function SidePanelCard({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <section className="rounded-2xl border border-white/10 bg-black/20 p-4">
+    <section className="rounded-2xl border border-white/5 bg-zinc-950/35 p-4">
       <p className="text-sm font-semibold text-white">{title}</p>
       <div className="mt-3">{children}</div>
     </section>
@@ -1568,7 +1574,7 @@ function toHealthDescription(connector: ApiConnectorSummary) {
 
 function ConnectorPlaceholderDetail({ connector }: { connector: ApiConnectorSummary }) {
   return (
-    <div className="rounded-[28px] border border-dashed border-white/10 bg-black/20 p-6">
+    <div className="rounded-2xl border border-dashed border-white/10 bg-black/20 p-6">
       <p className="text-sm font-semibold text-white">모듈 준비 영역</p>
       <p className="mt-3 text-sm leading-relaxed text-zinc-300">{connector.nextStep}</p>
       <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.03] p-4">

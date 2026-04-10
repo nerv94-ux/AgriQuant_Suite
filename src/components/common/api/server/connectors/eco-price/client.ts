@@ -124,6 +124,22 @@ function addCond(search: URLSearchParams, key: string, value?: string) {
   }
 }
 
+/** 부류·품목 등 조건이 있으면 cond 없는 호출로 넓은 결과가 나오면 안 됨(폴백 금지). */
+function hasEcoListFilters(req: EcoPriceProductListRequest): boolean {
+  const keys: (keyof EcoPriceProductListRequest)[] = [
+    "ctgryCd",
+    "itemCd",
+    "vrtyCd",
+    "grdCd",
+    "sggCd",
+    "mrktCd",
+  ];
+  return keys.some((k) => {
+    const v = req[k];
+    return typeof v === "string" && v.trim().length > 0;
+  });
+}
+
 function buildRequestUrl(baseUrl: string, search: URLSearchParams) {
   const separator = baseUrl.includes("?") ? "&" : "?";
   return `${baseUrl}${separator}${search.toString()}`;
@@ -272,6 +288,7 @@ export async function callEcoPriceProductList(
   }
 
   const serviceKeys = buildServiceKeyCandidates(runtime.serviceKey);
+  const restrictToCondOnly = hasEcoListFilters(params.request);
   const makeSearch = (options: { key: string; withCond: boolean; returnTypeMode: "none" | "returnType" | "_type" | "both" }) => {
     const search = new URLSearchParams({
       serviceKey: options.key,
@@ -297,13 +314,22 @@ export async function callEcoPriceProductList(
     return search;
   };
 
-  const attempts = serviceKeys.flatMap((key) => [
-    { name: "cond+both", search: makeSearch({ key, withCond: true, returnTypeMode: "both" }) },
-    { name: "no-cond+both", search: makeSearch({ key, withCond: false, returnTypeMode: "both" }) },
-    { name: "no-cond+_type", search: makeSearch({ key, withCond: false, returnTypeMode: "_type" }) },
-    { name: "no-cond+returnType", search: makeSearch({ key, withCond: false, returnTypeMode: "returnType" }) },
-    { name: "no-cond+none", search: makeSearch({ key, withCond: false, returnTypeMode: "none" }) },
-  ]);
+  const attempts = serviceKeys.flatMap((key) => {
+    const condBoth = {
+      name: "cond+both",
+      search: makeSearch({ key, withCond: true, returnTypeMode: "both" }),
+    };
+    if (restrictToCondOnly) {
+      return [condBoth];
+    }
+    return [
+      condBoth,
+      { name: "no-cond+both", search: makeSearch({ key, withCond: false, returnTypeMode: "both" }) },
+      { name: "no-cond+_type", search: makeSearch({ key, withCond: false, returnTypeMode: "_type" }) },
+      { name: "no-cond+returnType", search: makeSearch({ key, withCond: false, returnTypeMode: "returnType" }) },
+      { name: "no-cond+none", search: makeSearch({ key, withCond: false, returnTypeMode: "none" }) },
+    ];
+  });
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);

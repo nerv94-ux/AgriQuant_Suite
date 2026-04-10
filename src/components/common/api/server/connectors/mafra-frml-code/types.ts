@@ -14,3 +14,9 @@ export type MafraFrmlCodeSearchResponseData = {
   totalCached: number;
   matches: MafraFrmlCode[];
 };
+
+export type MafraFrmlCodeListResponseData = {
+  updatedAt: string | null;
+  total: number;
+  items: MafraFrmlCode[];
+};

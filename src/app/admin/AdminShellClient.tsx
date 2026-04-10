@@ -16,9 +16,23 @@ type AdminShellClientProps = {
   children: ReactNode;
 };
 
+function adminHeaderContextLabel(pathname: string): string {
+  if (pathname === "/admin" || pathname === "") {
+    return "모듈 센터 · 개요";
+  }
+  if (pathname.startsWith("/admin/apis")) {
+    return "모듈 센터 · API";
+  }
+  if (pathname.startsWith("/admin/users")) {
+    return "모듈 센터 · Auth";
+  }
+  return "모듈 센터";
+}
+
 export default function AdminShellClient({ userLabel, children }: AdminShellClientProps) {
   const pathname = usePathname();
   const activePathname = pathname ?? "";
+  const headerContext = adminHeaderContextLabel(activePathname);
   const [collapsed, setCollapsed] = useState(() => {
     if (typeof window === "undefined") return false;
     return window.localStorage.getItem("admin:sidebar:collapsed") === "1";
@@ -35,15 +49,15 @@ export default function AdminShellClient({ userLabel, children }: AdminShellClie
   }
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-100">
+    <div className="min-h-screen bg-zinc-100 text-zinc-900">
       <div className="mx-auto flex w-full max-w-[1600px]">
         <aside
           className={[
-            "hidden border-r border-white/10 bg-zinc-950/85 backdrop-blur-xl lg:flex lg:flex-col transition-all duration-200",
+            "hidden border-r border-zinc-200 bg-white shadow-sm lg:flex lg:flex-col transition-all duration-200",
             collapsed ? "lg:w-[92px]" : "lg:w-80",
           ].join(" ")}
         >
-          <div className={["border-b border-white/10 py-6", collapsed ? "px-3" : "px-6"].join(" ")}>
+          <div className={["border-b border-zinc-200 py-6", collapsed ? "px-3" : "px-6"].join(" ")}>
             <div className="flex items-center justify-between gap-2">
               <p className="text-[11px] uppercase tracking-[0.24em] text-zinc-500">
                 {collapsed ? "AQ" : "AgriQuote Admin"}
@@ -52,22 +66,22 @@ export default function AdminShellClient({ userLabel, children }: AdminShellClie
                 type="button"
                 onClick={toggleCollapsed}
                 title={collapsed ? "사이드바 확장" : "사이드바 축소"}
-                className="h-7 w-7 rounded-lg border border-white/10 bg-white/5 text-xs text-zinc-200"
+                className="h-7 w-7 rounded-lg border border-zinc-200 bg-zinc-50 text-xs text-zinc-700"
               >
                 {collapsed ? "›" : "‹"}
               </button>
             </div>
             {!collapsed ? (
               <>
-                <h1 className="mt-2 text-xl font-semibold text-white">모듈 센터</h1>
-                <p className="mt-2 text-xs leading-relaxed text-zinc-400">
+                <h1 className="mt-2 text-xl font-semibold text-zinc-900">모듈 센터</h1>
+                <p className="mt-2 text-xs leading-relaxed text-zinc-600">
                   Auth, API, UI, Logs, Programs 모듈을 같은 구조 안에서 확장합니다.
                 </p>
               </>
             ) : null}
           </div>
 
-          <div className={["border-b border-white/10 py-4", collapsed ? "px-2" : "px-3"].join(" ")}>
+          <div className={["border-b border-zinc-200 py-4", collapsed ? "px-2" : "px-3"].join(" ")}>
             {!collapsed ? (
               <p className="px-3 pb-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-zinc-500">
                 Center
@@ -80,8 +94,8 @@ export default function AdminShellClient({ userLabel, children }: AdminShellClie
                 "flex rounded-2xl border transition",
                 collapsed ? "justify-center px-2 py-3" : "px-4 py-3",
                 isAdminHrefActive(activePathname, adminHomeItem.href)
-                  ? "border-white/15 bg-white/10 text-white shadow-[0_12px_30px_-18px_rgba(255,255,255,0.45)]"
-                  : "border-transparent text-zinc-300 hover:border-white/10 hover:bg-white/5 hover:text-white",
+                  ? "border-emerald-200 bg-emerald-50 text-emerald-900 shadow-sm"
+                  : "border-transparent text-zinc-700 hover:border-zinc-200 hover:bg-zinc-50 hover:text-zinc-900",
               ].join(" ")}
             >
               {collapsed ? (
@@ -89,7 +103,7 @@ export default function AdminShellClient({ userLabel, children }: AdminShellClie
               ) : (
                 <div>
                   <p className="text-sm font-semibold">{adminHomeItem.label}</p>
-                  <p className="mt-1 text-xs leading-relaxed text-zinc-400">
+                  <p className="mt-1 text-xs leading-relaxed text-zinc-600">
                     {adminHomeItem.description}
                   </p>
                 </div>
@@ -115,8 +129,8 @@ export default function AdminShellClient({ userLabel, children }: AdminShellClie
                       "block rounded-2xl border transition",
                       collapsed ? "px-2 py-3 text-center" : "px-4 py-3",
                       active
-                        ? "border-white/15 bg-white/10 text-white shadow-[0_12px_30px_-18px_rgba(255,255,255,0.45)]"
-                        : "border-transparent text-zinc-300 hover:border-white/10 hover:bg-white/5 hover:text-white",
+                        ? "border-emerald-200 bg-emerald-50 text-emerald-900 shadow-sm"
+                        : "border-transparent text-zinc-700 hover:border-zinc-200 hover:bg-zinc-50 hover:text-zinc-900",
                     ].join(" ")}
                   >
                     {collapsed ? (
@@ -127,11 +141,11 @@ export default function AdminShellClient({ userLabel, children }: AdminShellClie
                       <div className="flex items-start justify-between gap-3">
                         <div>
                           <p className="text-sm font-semibold">{item.label}</p>
-                          <p className="mt-1 text-xs leading-relaxed text-zinc-400">
+                          <p className="mt-1 text-xs leading-relaxed text-zinc-600">
                             {item.summary}
                           </p>
                         </div>
-                        <span className="rounded-full border border-emerald-300/20 bg-emerald-500/15 px-2 py-1 text-[10px] font-semibold text-emerald-200">
+                        <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-1 text-[10px] font-semibold text-emerald-800">
                           {item.badge}
                         </span>
                       </div>
@@ -142,7 +156,7 @@ export default function AdminShellClient({ userLabel, children }: AdminShellClie
             </div>
           </nav>
 
-          <div className={["border-t border-white/10 py-4", collapsed ? "px-2" : "px-3"].join(" ")}>
+          <div className={["border-t border-zinc-200 py-4", collapsed ? "px-2" : "px-3"].join(" ")}>
             {!collapsed ? (
               <p className="px-3 pb-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-zinc-500">
                 Planned
@@ -153,22 +167,22 @@ export default function AdminShellClient({ userLabel, children }: AdminShellClie
                 <div
                   key={item.id}
                   className={[
-                    "rounded-2xl border border-white/5 bg-white/[0.03]",
+                    "rounded-2xl border border-zinc-200 bg-zinc-50",
                     collapsed ? "px-2 py-3 text-center" : "px-4 py-3",
                   ].join(" ")}
                   title={item.label}
                 >
                   {collapsed ? (
-                    <p className="text-xs font-semibold text-zinc-300">{item.shortLabel}</p>
+                    <p className="text-xs font-semibold text-zinc-700">{item.shortLabel}</p>
                   ) : (
                     <div className="flex items-start justify-between gap-3">
                       <div>
-                        <p className="text-sm font-semibold text-zinc-200">{item.label}</p>
-                        <p className="mt-1 text-xs leading-relaxed text-zinc-500">
+                        <p className="text-sm font-semibold text-zinc-900">{item.label}</p>
+                        <p className="mt-1 text-xs leading-relaxed text-zinc-600">
                           {item.summary}
                         </p>
                       </div>
-                      <span className="rounded-full border border-white/10 bg-white/5 px-2 py-1 text-[10px] font-semibold text-zinc-400">
+                      <span className="rounded-full border border-zinc-200 bg-white px-2 py-1 text-[10px] font-semibold text-zinc-600">
                         {item.badge}
                       </span>
                     </div>
@@ -180,14 +194,14 @@ export default function AdminShellClient({ userLabel, children }: AdminShellClie
         </aside>
 
         <div className="flex-1 min-w-0">
-          <header className="sticky top-0 z-20 border-b border-white/10 bg-zinc-950/80 backdrop-blur-xl">
+          <header className="sticky top-0 z-20 border-b border-zinc-200 bg-white/90 backdrop-blur-xl">
             <div className="flex h-16 items-center justify-between px-4 sm:px-6">
-              <div className="flex items-center gap-2">
-                <span className="inline-flex h-2.5 w-2.5 rounded-full bg-emerald-400" />
-                <span className="text-sm text-zinc-300">Admin Module Center</span>
+              <div className="flex min-w-0 items-center gap-2">
+                <span className="inline-flex h-2.5 w-2.5 shrink-0 rounded-full bg-emerald-500" />
+                <span className="truncate text-sm text-zinc-700">{headerContext}</span>
               </div>
-              <div className="text-xs sm:text-sm text-zinc-300">
-                관리자: <span className="font-semibold text-white">{userLabel}</span>
+              <div className="text-xs sm:text-sm text-zinc-700">
+                관리자: <span className="font-semibold text-zinc-900">{userLabel}</span>
               </div>
             </div>
           </header>

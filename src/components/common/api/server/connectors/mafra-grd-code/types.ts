@@ -14,3 +14,9 @@ export type MafraGrdCodeSearchResponseData = {
   totalCached: number;
   matches: MafraGrdCode[];
 };
+
+export type MafraGrdCodeListResponseData = {
+  updatedAt: string | null;
+  total: number;
+  items: MafraGrdCode[];
+};

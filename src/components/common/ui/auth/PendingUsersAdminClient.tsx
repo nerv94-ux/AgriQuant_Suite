@@ -86,14 +86,14 @@ export function PendingUsersAdminClient({
               <img
                 src={u.image}
                 alt={u.name ?? u.email ?? "user"}
-                className="h-9 w-9 rounded-full object-cover border border-black/10 dark:border-white/10"
+                className="h-9 w-9 rounded-full object-cover border border-zinc-200"
               />
             ) : (
-              <div className="h-9 w-9 rounded-full bg-black/5 dark:bg-white/10 border border-black/10 dark:border-white/10" />
+              <div className="h-9 w-9 rounded-full bg-zinc-100 border border-zinc-200" />
             )}
             <div>
-              <div className="font-semibold text-zinc-900 dark:text-zinc-50">{u.name ?? "이름 미등록"}</div>
-              <div className="text-xs text-zinc-600 dark:text-zinc-300">{u.email ?? "no-email"}</div>
+              <div className="font-semibold text-zinc-900">{u.name ?? "이름 미등록"}</div>
+              <div className="text-xs text-zinc-600">{u.email ?? "no-email"}</div>
             </div>
           </div>
         ),
@@ -102,7 +102,7 @@ export function PendingUsersAdminClient({
         key: "appId",
         header: "앱",
         cell: (u) => (
-          <span className="text-xs font-semibold text-zinc-800 dark:text-zinc-100">
+          <span className="text-xs font-semibold text-zinc-800">
             {u.registeredAppId ?? "-"}
           </span>
         ),
@@ -111,7 +111,7 @@ export function PendingUsersAdminClient({
         key: "requestedAt",
         header: "가입 요청",
         cell: (u) => (
-          <span className="text-xs text-zinc-600 dark:text-zinc-300">
+          <span className="text-xs text-zinc-600">
             {new Date(u.createdAt).toLocaleString()}
           </span>
         ),
@@ -148,11 +148,11 @@ export function PendingUsersAdminClient({
     <div className="w-full">
       <div className="mb-5 flex items-center gap-3 flex-wrap">
         <div>
-          <label className="text-sm font-semibold text-zinc-800 dark:text-zinc-100">앱 필터</label>
+          <label className="text-sm font-semibold text-zinc-800">앱 필터</label>
           <select
             value={selectedAppId}
             onChange={onChangeApp}
-            className="mt-1 h-10 rounded-xl border border-black/10 dark:border-white/15 bg-white/60 dark:bg-white/5 px-3 text-sm"
+            className="mt-1 h-10 rounded-xl border border-zinc-200 bg-white px-3 text-sm text-zinc-900"
           >
             <option value="ALL">전체(PENDING)</option>
             {appOptions.map((appId) => (
@@ -163,7 +163,7 @@ export function PendingUsersAdminClient({
           </select>
         </div>
 
-        <div className="text-sm text-zinc-600 dark:text-zinc-300">
+        <div className="text-sm text-zinc-600">
           표시: <span className="font-semibold">{users.length}</span>명
         </div>
       </div>

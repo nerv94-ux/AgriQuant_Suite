@@ -9,6 +9,7 @@ import {
 } from "../../admin/mafraItemCodeStore";
 import type {
   MafraMarketCode,
+  MafraMarketCodeListResponseData,
   MafraMarketCodeSearchResponseData,
   MafraMarketCodeSyncResponseData,
 } from "./types";
@@ -187,6 +188,78 @@ export async function searchMafraMarketCodes(params: {
       updatedAt: cache.updatedAt,
       totalCached: cache.items.length,
       matches,
+    },
+  });
+  await saveApiLog({ ok: true, meta: response.meta, appId: params.appId, message: response.message });
+  return response;
+}
+
+/**
+ * 캐시에 도매시장 전체를 올려 두고, 데스크에서 선택 UI로 고를 때 사용합니다.
+ * 캐시가 비었거나 TTL이 지나면 동기화를 시도합니다.
+ */
+export async function listMafraMarketCodes(params: {
+  requestId: string;
+  appId?: string;
+  forceSync?: boolean;
+}): Promise<ApiResponse<MafraMarketCodeListResponseData>> {
+  const startedAt = performance.now();
+
+  let cache = await loadMafraMarketCodeCache();
+  const cacheAge = cache.updatedAt ? Date.now() - new Date(cache.updatedAt).getTime() : Number.POSITIVE_INFINITY;
+  const needsRefresh = params.forceSync || !cache.items.length || cacheAge > CACHE_TTL_MS;
+
+  if (needsRefresh) {
+    const synced = await syncMafraMarketCodes({
+      requestId: `${params.requestId}-sync`,
+      appId: params.appId ?? "desk-mafra-market-codes-list",
+    });
+    if (!synced.ok) {
+      if (cache.items.length > 0) {
+        const staleItems = [...cache.items].sort((a, b) => {
+          const na = a.CODENAME.localeCompare(b.CODENAME, "ko");
+          if (na !== 0) return na;
+          return a.CODEID.localeCompare(b.CODEID, "ko", { numeric: true });
+        });
+        const staleResponse = buildSuccess<MafraMarketCodeListResponseData>({
+          source: SOURCE,
+          requestId: params.requestId,
+          startedAt,
+          message: `최신 동기화에 실패했습니다. 이전에 저장된 도매시장 ${staleItems.length}건을 표시합니다. (${synced.message})`,
+          data: {
+            updatedAt: cache.updatedAt,
+            total: staleItems.length,
+            items: staleItems,
+          },
+        });
+        await saveApiLog({
+          ok: true,
+          meta: staleResponse.meta,
+          appId: params.appId,
+          message: staleResponse.message ?? "",
+        });
+        return staleResponse;
+      }
+      return synced as ApiResponse<MafraMarketCodeListResponseData>;
+    }
+    cache = await loadMafraMarketCodeCache();
+  }
+
+  const items = [...cache.items].sort((a, b) => {
+    const na = a.CODENAME.localeCompare(b.CODENAME, "ko");
+    if (na !== 0) return na;
+    return a.CODEID.localeCompare(b.CODEID, "ko", { numeric: true });
+  });
+
+  const response = buildSuccess<MafraMarketCodeListResponseData>({
+    source: SOURCE,
+    requestId: params.requestId,
+    startedAt,
+    message: `도매시장코드 ${items.length}건`,
+    data: {
+      updatedAt: cache.updatedAt,
+      total: items.length,
+      items,
     },
   });
   await saveApiLog({ ok: true, meta: response.meta, appId: params.appId, message: response.message });
